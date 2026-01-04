@@ -1,0 +1,11 @@
+{
+  "name": "week-01-resolution-tracker",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Week 1 Resolution Tracker PWA",
+  "scripts": {
+    "dev": "echo \"Initialize project tooling next\"",
+    "build": "echo \"Build step to be added\""
+  }
+}
+
