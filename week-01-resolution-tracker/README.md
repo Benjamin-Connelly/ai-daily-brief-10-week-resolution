@@ -19,4 +19,3 @@ Build and deploy a simple resolution tracker that will be used to track progress
 - No database
 
 This project prioritizes shipping speed and future extensibility.
-
