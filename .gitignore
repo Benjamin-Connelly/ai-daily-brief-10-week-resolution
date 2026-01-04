@@ -19,4 +19,5 @@ rad.json
 #License-file
 *.flf
 #Test results file
-TestResults.xmlweek-01-resolution-tracker.pre-lovable/
+TestResults.xml
+week-01-resolution-tracker.pre-lovable/
