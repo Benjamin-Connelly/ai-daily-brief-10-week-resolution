@@ -2,11 +2,11 @@ import type { ResolutionState } from "./schema";
 import { createDefaultWorkspaceState, createDefaultProgram, createDefaultPhase } from "./model";
 import type { Phase, Deliverable } from "./model";
 
-// Week definitions from the PDF-like structure
+// Week definitions from the PDF-like structure (deliverables without completed/updatedAt - added during migration)
 const WEEK_DEFINITIONS: Array<{
   title: string;
   goals: string[];
-  deliverables: Deliverable[];
+  deliverables: Array<Omit<Deliverable, "completed" | "updatedAt">>;
 }> = [
   {
     title: "Week 1: Resolution Tracker",
@@ -94,6 +94,7 @@ const WEEK_DEFINITIONS: Array<{
 export function migrateV1ToV2(v1State: ResolutionState) {
   const v2State = createDefaultWorkspaceState();
   v2State.createdAt = v1State.createdAt;
+  const now = new Date().toISOString();
 
   // Create phases from v1 weeks
   const phases: Phase[] = v1State.weeks.map((week, idx) => {
@@ -103,27 +104,37 @@ export function migrateV1ToV2(v1State: ResolutionState) {
       deliverables: [],
     };
 
-    // Map artifacts to deliverables
+    // Map artifacts to deliverables with completed/updatedAt
     const deliverables: Deliverable[] = [
-      ...(def.deliverables || []),
+      ...(def.deliverables?.map(d => ({
+        ...d,
+        completed: false,
+        updatedAt: now,
+      })) || []),
       ...(week.artifacts?.map((art) => {
         if (art.url) {
           return {
             label: art.label,
             kind: "link" as const,
             value: art.url,
+            completed: false,
+            updatedAt: now,
           };
         } else if (art.path) {
           return {
             label: art.label,
             kind: "file" as const,
             value: art.path,
+            completed: false,
+            updatedAt: now,
           };
         } else {
           return {
             label: art.label,
             kind: "text" as const,
             value: art.notes,
+            completed: false,
+            updatedAt: now,
           };
         }
       }) || []),

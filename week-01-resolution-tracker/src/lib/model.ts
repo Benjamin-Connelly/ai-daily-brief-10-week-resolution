@@ -7,6 +7,8 @@ export type Deliverable = {
   kind: DeliverableKind;
   value?: string;
   required?: boolean;
+  completed: boolean;
+  updatedAt: string; // ISO
 };
 
 export type Phase = {

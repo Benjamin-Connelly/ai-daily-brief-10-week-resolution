@@ -1,16 +1,20 @@
 import { useState, useEffect } from 'react'
 import { loadWorkspaceState, saveWorkspaceState, exportWorkspaceState, importWorkspaceState } from './lib/storage'
-import type { WorkspaceState, Status, Phase } from './lib/model'
+import type { WorkspaceState, Status, Phase, Deliverable } from './lib/model'
 import './App.css'
 
 function PhaseCard({ 
   phase, 
   onStatusChange, 
-  onNotesChange 
+  onNotesChange,
+  onDeliverableComplete,
+  onDeliverableValueChange
 }: { 
   phase: Phase
   onStatusChange: (phaseId: string, status: Status) => void
   onNotesChange: (phaseId: string, notes: string) => void
+  onDeliverableComplete: (phaseId: string, deliverableIndex: number, completed: boolean) => void
+  onDeliverableValueChange: (phaseId: string, deliverableIndex: number, value: string) => void
 }) {
   const statusOptions: Status[] = ["not_started", "in_progress", "done", "paused"]
   const statusLabels: Record<Status, string> = {
@@ -34,13 +38,76 @@ function PhaseCard({
           ))}
         </select>
       </div>
-      <textarea
-        value={phase.notes}
-        onChange={(e) => onNotesChange(phase.id, e.target.value)}
-        placeholder="Add notes for this phase..."
-        className="notes-input"
-        rows={3}
-      />
+
+      {phase.goals.length > 0 && (
+        <div className="goals-section">
+          <h3 className="section-title">Goals</h3>
+          <ul className="goals-list">
+            {phase.goals.map((goal, idx) => (
+              <li key={idx}>{goal}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {phase.deliverables.length > 0 && (
+        <div className="deliverables-section">
+          <h3 className="section-title">Deliverables</h3>
+          <div className="deliverables-list">
+            {phase.deliverables.map((deliverable, idx) => (
+              <div key={idx} className="deliverable-item">
+                <div className="deliverable-header">
+                  <label className="deliverable-checkbox">
+                    <input
+                      type="checkbox"
+                      checked={deliverable.completed}
+                      onChange={(e) => onDeliverableComplete(phase.id, idx, e.target.checked)}
+                    />
+                    <span className="deliverable-label">{deliverable.label}</span>
+                  </label>
+                  {deliverable.required && (
+                    <span className="required-badge">Required</span>
+                  )}
+                </div>
+                <div className="deliverable-evidence">
+                  {deliverable.kind === "link" && (
+                    <input
+                      type="url"
+                      value={deliverable.value || ""}
+                      onChange={(e) => onDeliverableValueChange(phase.id, idx, e.target.value)}
+                      placeholder="Enter URL..."
+                      className="evidence-input"
+                    />
+                  )}
+                  {deliverable.kind === "text" && (
+                    <textarea
+                      value={deliverable.value || ""}
+                      onChange={(e) => onDeliverableValueChange(phase.id, idx, e.target.value)}
+                      placeholder="Enter text..."
+                      className="evidence-textarea"
+                      rows={2}
+                    />
+                  )}
+                  {deliverable.kind === "file" && (
+                    <div className="file-placeholder">file attachment (later)</div>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div className="notes-section">
+        <label className="notes-label">Notes</label>
+        <textarea
+          value={phase.notes}
+          onChange={(e) => onNotesChange(phase.id, e.target.value)}
+          placeholder="Add notes for this phase..."
+          className="notes-input"
+          rows={3}
+        />
+      </div>
     </div>
   )
 }
@@ -93,6 +160,64 @@ function App() {
               phases: program.phases.map(phase =>
                 phase.id === phaseId
                   ? { ...phase, notes, updatedAt: new Date().toISOString() }
+                  : phase
+              )
+            }
+          : program
+      )
+    }
+    setWorkspace(updated)
+    saveWorkspaceState(updated)
+  }
+
+  const handleDeliverableComplete = (phaseId: string, deliverableIndex: number, completed: boolean) => {
+    if (!workspace || !selectedProgram) return
+    const updated = {
+      ...workspace,
+      programs: workspace.programs.map(program =>
+        program.id === selectedProgramId
+          ? {
+              ...program,
+              phases: program.phases.map(phase =>
+                phase.id === phaseId
+                  ? {
+                      ...phase,
+                      deliverables: phase.deliverables.map((del, idx) =>
+                        idx === deliverableIndex
+                          ? { ...del, completed, updatedAt: new Date().toISOString() }
+                          : del
+                      ),
+                      updatedAt: new Date().toISOString()
+                    }
+                  : phase
+              )
+            }
+          : program
+      )
+    }
+    setWorkspace(updated)
+    saveWorkspaceState(updated)
+  }
+
+  const handleDeliverableValueChange = (phaseId: string, deliverableIndex: number, value: string) => {
+    if (!workspace || !selectedProgram) return
+    const updated = {
+      ...workspace,
+      programs: workspace.programs.map(program =>
+        program.id === selectedProgramId
+          ? {
+              ...program,
+              phases: program.phases.map(phase =>
+                phase.id === phaseId
+                  ? {
+                      ...phase,
+                      deliverables: phase.deliverables.map((del, idx) =>
+                        idx === deliverableIndex
+                          ? { ...del, value, updatedAt: new Date().toISOString() }
+                          : del
+                      ),
+                      updatedAt: new Date().toISOString()
+                    }
                   : phase
               )
             }
@@ -208,6 +333,8 @@ function App() {
                 phase={phase}
                 onStatusChange={handleStatusChange}
                 onNotesChange={handleNotesChange}
+                onDeliverableComplete={handleDeliverableComplete}
+                onDeliverableValueChange={handleDeliverableValueChange}
               />
             ))
         ) : (
