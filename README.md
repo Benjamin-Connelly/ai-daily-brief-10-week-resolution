@@ -1,0 +1,1 @@
+# ai-daily-brief-10-week-resolution
