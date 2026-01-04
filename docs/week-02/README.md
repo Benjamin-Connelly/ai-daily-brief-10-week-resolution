@@ -21,3 +21,6 @@ Build a practical decision framework for when to use ChatGPT vs Claude vs Gemini
 - No automation
 - No fine-tuning
 
+## Status
+Scaffold complete. Test suite execution pending.
+
