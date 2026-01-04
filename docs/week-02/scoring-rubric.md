@@ -15,3 +15,4 @@ Score each model output 1–5 per category (5 = best).
 - Record failures and "gotchas" explicitly.
 - Prefer concrete examples over opinions.
 
+

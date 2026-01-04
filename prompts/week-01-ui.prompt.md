@@ -12,3 +12,4 @@ Build a simple React-based resolution tracker UI with the following features:
 
 Optimize for clarity and ease of future extension.
 
+

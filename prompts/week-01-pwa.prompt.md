@@ -7,3 +7,4 @@ Add minimal PWA support to a React app:
 
 Do not over-engineer caching or offline logic.
 
+

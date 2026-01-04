@@ -14,3 +14,4 @@ Reason: Consistent AI-assisted coding environment.
 ### Decision: PWA in Week 1
 Reason: Establish a mobile-ready baseline early.
 
+

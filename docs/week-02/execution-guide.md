@@ -113,3 +113,4 @@ Score each model output 1–5 per category (5 = best):
   * calibrated scores,
   * and a first-pass "rules of thumb" you can reuse for the remaining tasks.
 
+
