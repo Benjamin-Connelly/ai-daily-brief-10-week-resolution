@@ -1,4 +1,5 @@
-import { DEFAULT_STATE, ResolutionState } from "./schema";
+import { DEFAULT_STATE } from "./schema";
+import type { ResolutionState } from "./schema";
 
 const KEY = "ai_resolution_state_v1";
 
