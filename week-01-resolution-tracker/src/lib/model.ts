@@ -8,6 +8,7 @@ export type Deliverable = {
   value?: string;
   required?: boolean;
   completed: boolean;
+  onHold?: boolean;
   updatedAt: string; // ISO
 };
 
@@ -127,7 +128,8 @@ export function createDefaultPhase(
 /**
  * Derives phase status from deliverables:
  * - "done" if all required deliverables are completed
- * - "in_progress" if any deliverable has completed=true or non-empty value
+ * - "in_progress" if any deliverable has completed=true, non-empty value, or onHold=true
+ *   (paused tasks count as progress made)
  * - "not_started" otherwise
  */
 export function derivePhaseStatus(phase: Phase): Status {
@@ -139,8 +141,9 @@ export function derivePhaseStatus(phase: Phase): Status {
     return "done";
   }
   
+  // Progress includes: completed, evidence, or paused tasks
   const hasProgress = phase.deliverables.some(d => 
-    d.completed || (d.value && d.value.trim().length > 0)
+    d.completed || (d.value && d.value.trim().length > 0) || d.onHold === true
   );
   
   if (hasProgress) {
@@ -181,5 +184,31 @@ export function deriveResolutionProgress(resolution: Resolution): { status: Stat
 
   const activeProgram = resolution.programs.find(p => p.id === resolution.activeProgramId) || resolution.programs[0];
   return deriveProgramProgress(activeProgram);
+}
+
+/**
+ * Derives deliverable status for kanban columns with proper precedence:
+ * 1. "done" if completed=true (highest priority - completed always wins)
+ * 2. "paused" if onHold=true (but not completed)
+ * 3. "in_progress" if evidence value is non-empty (but not completed or on hold)
+ * 4. "not_started" otherwise
+ */
+export function deriveDeliverableStatus(deliverable: Deliverable): Status {
+  // Completed always wins - never show completed tasks in On Hold
+  if (deliverable.completed) {
+    return "done";
+  }
+  
+  // On Hold takes precedence over evidence
+  if (deliverable.onHold === true) {
+    return "paused";
+  }
+  
+  // Evidence indicates in progress
+  if (deliverable.value && deliverable.value.trim().length > 0) {
+    return "in_progress";
+  }
+  
+  return "not_started";
 }
 

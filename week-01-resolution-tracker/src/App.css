@@ -791,6 +791,16 @@
   border-color: #9ca3af;
 }
 
+.btn-create:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  background-color: #ccc;
+}
+
+.btn-create:disabled:hover {
+  background-color: #ccc;
+}
+
 .btn-create {
   padding: 0.75rem 1.5rem;
   border: none;
@@ -1361,6 +1371,16 @@
   cursor: pointer;
   font-size: 0.95rem;
   font-weight: 500;
+}
+
+.btn-create:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  background-color: #ccc;
+}
+
+.btn-create:disabled:hover {
+  background-color: #ccc;
 }
 
 .btn-create {

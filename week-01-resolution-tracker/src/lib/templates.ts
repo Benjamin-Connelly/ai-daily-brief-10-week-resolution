@@ -15,6 +15,7 @@ export function createAIDailyBrief10WeekProgram(): Program {
       def.deliverables.map(d => ({
         ...d,
         completed: false,
+        onHold: false,
         updatedAt: now,
       }))
     );

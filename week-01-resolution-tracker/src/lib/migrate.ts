@@ -112,11 +112,12 @@ export function migrateV1ToV2(v1State: ResolutionState) {
       deliverables: [],
     };
 
-    // Map artifacts to deliverables with completed/updatedAt
+    // Map artifacts to deliverables with completed/updatedAt/onHold
     const deliverables: Deliverable[] = [
       ...(def.deliverables?.map(d => ({
         ...d,
         completed: false,
+        onHold: false,
         updatedAt: now,
       })) || []),
       ...(week.artifacts?.map((art) => {
@@ -126,6 +127,7 @@ export function migrateV1ToV2(v1State: ResolutionState) {
             kind: "link" as const,
             value: art.url,
             completed: false,
+            onHold: false,
             updatedAt: now,
           };
         } else if (art.path) {
@@ -134,6 +136,7 @@ export function migrateV1ToV2(v1State: ResolutionState) {
             kind: "file" as const,
             value: art.path,
             completed: false,
+            onHold: false,
             updatedAt: now,
           };
         } else {
@@ -142,6 +145,7 @@ export function migrateV1ToV2(v1State: ResolutionState) {
             kind: "text" as const,
             value: art.notes,
             completed: false,
+            onHold: false,
             updatedAt: now,
           };
         }

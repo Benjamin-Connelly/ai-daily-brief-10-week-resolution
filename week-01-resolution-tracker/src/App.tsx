@@ -1,11 +1,11 @@
 import { useState, useEffect } from 'react'
 import { loadWorkspaceState, saveWorkspaceState, exportWorkspaceState, importWorkspaceState } from './lib/storage'
-import { derivePhaseStatus, deriveProgramProgress, deriveResolutionProgress } from './lib/model'
-import type { WorkspaceState, Status, Phase, Resolution, Program, Priority } from './lib/model'
+import { derivePhaseStatus, deriveProgramProgress, deriveResolutionProgress, deriveDeliverableStatus } from './lib/model'
+import type { WorkspaceState, Status, Phase, Resolution, Program, Priority, Deliverable } from './lib/model'
 import { createBlankResolution, createAIDailyBrief10WeekProgram, createBlankProgram } from './lib/templates'
 import './App.css'
 
-type View = 'home' | 'resolution-detail'
+type Scope = 'portfolio' | 'project' | 'sprint'
 
 function PhaseCard({ 
   phase, 
@@ -305,7 +305,7 @@ function CreateResolutionModal({
 }: {
   isOpen: boolean
   onClose: () => void
-  onCreate: (title: string, description?: string, category?: string, priority?: Priority, imageUrl?: string, status?: Status) => void
+  onCreate: (title: string, description?: string, category?: string, priority?: Priority, imageUrl?: string, status?: Status, useTemplate?: boolean) => void
 }) {
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
@@ -313,6 +313,7 @@ function CreateResolutionModal({
   const [priority, setPriority] = useState<Priority>('medium')
   const [imageUrl, setImageUrl] = useState('')
   const [status, setStatus] = useState<Status>('not_started')
+  const [useTemplate, setUseTemplate] = useState(false)
 
   if (!isOpen) return null
 
@@ -325,7 +326,8 @@ function CreateResolutionModal({
       category.trim() || undefined,
       priority,
       imageUrl.trim() || undefined,
-      status
+      status,
+      useTemplate
     )
     setTitle('')
     setDescription('')
@@ -333,19 +335,31 @@ function CreateResolutionModal({
     setPriority('medium')
     setImageUrl('')
     setStatus('not_started')
+    setUseTemplate(false)
     onClose()
   }
 
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-        <div className="modal-header">
-          <h2>Add New Task</h2>
+            <div className="modal-header">
+          <h2>Add New Project</h2>
           <button className="modal-close" onClick={onClose}>×</button>
         </div>
         <form onSubmit={handleSubmit}>
           <div className="form-group">
-            <label htmlFor="title">Resolution Name *</label>
+            <label htmlFor="template">Project Template</label>
+            <select
+              id="template"
+              value={useTemplate ? 'ai-10-week' : 'blank'}
+              onChange={(e) => setUseTemplate(e.target.value === 'ai-10-week')}
+            >
+              <option value="blank">Blank Program (1 sprint)</option>
+              <option value="ai-10-week">AI Daily Brief – 10 Week Sprint</option>
+            </select>
+          </div>
+          <div className="form-group">
+            <label htmlFor="title">Project Name *</label>
             <input
               id="title"
               type="text"
@@ -419,7 +433,7 @@ function CreateResolutionModal({
           </div>
           <div className="form-actions">
             <button type="button" onClick={onClose} className="btn-cancel">Cancel</button>
-            <button type="submit" className="btn-create">Create Task</button>
+            <button type="submit" className="btn-create">Create Project</button>
           </div>
         </form>
       </div>
@@ -1022,9 +1036,1222 @@ function ResolutionDetailView({
   )
 }
 
+// Sprint Focus component for sprint view
+function SprintFocus({
+  phase,
+  onJumpToDeliverable
+}: {
+  phase: Phase | null
+  onJumpToDeliverable?: (deliverableIndex: number) => void
+}) {
+  if (!phase) return null
+
+  // Priority order for next task:
+  // 1) Required + not completed + not on hold (prefer not_started, then in_progress)
+  // 2) Non-required + not completed + not on hold (prefer not_started, then in_progress)
+  // 3) Otherwise none
+
+  const findNextTask = (): { deliverable: Deliverable; index: number } | null => {
+    // Priority 1: Required tasks
+    const requiredNotDone = phase.deliverables
+      .map((d, idx) => ({ deliverable: d, index: idx }))
+      .filter(({ deliverable }) => 
+        deliverable.required && !deliverable.completed && deliverable.onHold !== true
+      )
+    
+    if (requiredNotDone.length > 0) {
+      // Prefer not_started, then in_progress
+      const notStarted = requiredNotDone.find(({ deliverable }) => 
+        deriveDeliverableStatus(deliverable) === 'not_started'
+      )
+      if (notStarted) return notStarted
+      
+      const inProgress = requiredNotDone.find(({ deliverable }) => 
+        deriveDeliverableStatus(deliverable) === 'in_progress'
+      )
+      if (inProgress) return inProgress
+      
+      return requiredNotDone[0]
+    }
+
+    // Priority 2: Non-required tasks
+    const nonRequiredNotDone = phase.deliverables
+      .map((d, idx) => ({ deliverable: d, index: idx }))
+      .filter(({ deliverable }) => 
+        !deliverable.required && !deliverable.completed && deliverable.onHold !== true
+      )
+    
+    if (nonRequiredNotDone.length > 0) {
+      const notStarted = nonRequiredNotDone.find(({ deliverable }) => 
+        deriveDeliverableStatus(deliverable) === 'not_started'
+      )
+      if (notStarted) return notStarted
+      
+      const inProgress = nonRequiredNotDone.find(({ deliverable }) => 
+        deriveDeliverableStatus(deliverable) === 'in_progress'
+      )
+      if (inProgress) return inProgress
+      
+      return nonRequiredNotDone[0]
+    }
+
+    return null
+  }
+
+  const nextTask = findNextTask()
+  const remainingRequired = phase.deliverables.filter(
+    d => d.required && !d.completed && d.onHold !== true
+  )
+  const allTasks = phase.deliverables.filter(
+    d => !d.completed && d.onHold !== true
+  )
+
+  const handleJump = () => {
+    if (nextTask && onJumpToDeliverable) {
+      onJumpToDeliverable(nextTask.index)
+    }
+  }
+
+  // All required complete - reduced visual dominance
+  if (remainingRequired.length === 0 && nextTask) {
+    return (
+      <div className="focus-panel" style={{ 
+        marginBottom: '1.5rem', 
+        backgroundColor: '#f5f5f5',
+        padding: '1rem',
+        borderRadius: '8px'
+      }}>
+        <h3 className="focus-title" style={{ fontSize: '1rem', marginBottom: '0.5rem', color: '#666' }}>
+          All required tasks complete
+        </h3>
+        <div className="focus-content">
+          <p style={{ fontSize: '0.875rem', color: '#666', marginBottom: '0.5rem' }}>
+            Next suggested task: {nextTask.deliverable.label}
+          </p>
+          {onJumpToDeliverable && (
+            <button onClick={handleJump} className="jump-button" style={{ fontSize: '0.875rem', padding: '0.5rem 1rem' }}>
+              Jump to task
+            </button>
+          )}
+        </div>
+      </div>
+    )
+  }
+
+  // No tasks available
+  if (allTasks.length === 0) {
+    return (
+      <div className="focus-panel" style={{ 
+        marginBottom: '1.5rem', 
+        backgroundColor: '#f5f5f5',
+        padding: '1rem',
+        borderRadius: '8px'
+      }}>
+        <p className="focus-message" style={{ color: '#666', margin: 0 }}>
+          Nothing queued. All tasks are complete or on hold.
+        </p>
+      </div>
+    )
+  }
+
+  // Required tasks remain - full focus
+  return (
+    <div className="focus-panel" style={{ marginBottom: '1.5rem' }}>
+      <h3 className="focus-title">Next Required Task</h3>
+      <div className="focus-content">
+        {nextTask && (
+          <>
+            <div className="next-deliverable">
+              <span className="next-deliverable-label">Task:</span>
+              <span className="next-deliverable-name">{nextTask.deliverable.label}</span>
+            </div>
+            <p className="focus-count">
+              {remainingRequired.length} required {remainingRequired.length === 1 ? 'task' : 'tasks'} remaining
+            </p>
+            {onJumpToDeliverable && (
+              <button onClick={handleJump} className="jump-button">
+                Jump to task
+              </button>
+            )}
+          </>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// Create Task Modal for sprint view
+function CreateTaskModal({
+  isOpen,
+  onClose,
+  onCreate
+}: {
+  isOpen: boolean
+  onClose: () => void
+  onCreate: (label: string, required?: boolean, kind?: "link" | "text" | "file") => void
+}) {
+  const [label, setLabel] = useState('')
+  const [required, setRequired] = useState(false)
+  const [kind, setKind] = useState<"link" | "text" | "file">('text')
+
+  if (!isOpen) return null
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!label.trim()) return
+    onCreate(label.trim(), required, kind)
+    setLabel('')
+    setRequired(false)
+    setKind('text')
+    onClose()
+  }
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-header">
+          <h2>Add New Task</h2>
+          <button className="modal-close" onClick={onClose}>×</button>
+        </div>
+        <form onSubmit={handleSubmit}>
+          <div className="form-group">
+            <label htmlFor="task-label">Task Label *</label>
+            <input
+              id="task-label"
+              type="text"
+              value={label}
+              onChange={(e) => setLabel(e.target.value)}
+              required
+              placeholder="e.g., Complete research document"
+            />
+          </div>
+          <div className="form-row">
+            <div className="form-group">
+              <label htmlFor="task-kind">Type</label>
+              <select
+                id="task-kind"
+                value={kind}
+                onChange={(e) => setKind(e.target.value as "link" | "text" | "file")}
+              >
+                <option value="text">Text</option>
+                <option value="link">Link</option>
+                <option value="file">File</option>
+              </select>
+            </div>
+            <div className="form-group" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '1.5rem' }}>
+              <input
+                id="task-required"
+                type="checkbox"
+                checked={required}
+                onChange={(e) => setRequired(e.target.checked)}
+              />
+              <label htmlFor="task-required" style={{ margin: 0 }}>Required</label>
+            </div>
+          </div>
+          <div className="form-actions">
+            <button type="button" onClick={onClose} className="btn-cancel">Cancel</button>
+            <button 
+              type="submit" 
+              className="btn-create"
+              disabled={!label.trim()}
+            >
+              Create Task
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
+// Portfolio View - All Projects
+function PortfolioView({
+  resolutions,
+  onSelectProject,
+  onSelectSprint,
+  onCreateProject,
+  onStatusChange,
+  onExport,
+  onImport
+}: {
+  resolutions: Resolution[]
+  onSelectProject: (id: string) => void
+  onSelectSprint: (projectId: string, sprintId: string) => void
+  onCreateProject: (title: string, description?: string, category?: string, priority?: Priority, imageUrl?: string, status?: Status, useTemplate?: boolean) => void
+  onStatusChange: (resolutionId: string, newStatus: Status) => void
+  onExport: () => void
+  onImport: () => void
+}) {
+  const [showCreateModal, setShowCreateModal] = useState(false)
+  const [explodeSprints, setExplodeSprints] = useState(false)
+  const [filterCategory, setFilterCategory] = useState<string>('all')
+  const [filterPriority, setFilterPriority] = useState<string>('all')
+  const [sortBy, setSortBy] = useState<string>('newest')
+
+  // Calculate summary stats
+  const total = resolutions.length
+  const inProgress = resolutions.filter(r => {
+    const { status } = deriveResolutionProgress(r)
+    return status === 'in_progress'
+  }).length
+  const completed = resolutions.filter(r => {
+    const { status } = deriveResolutionProgress(r)
+    return status === 'done'
+  }).length
+  const highPriority = resolutions.filter(r => r.priority === 'high').length
+
+  // Filter and sort
+  let filteredResolutions = resolutions
+  if (filterCategory !== 'all') {
+    filteredResolutions = filteredResolutions.filter(r => r.category === filterCategory)
+  }
+  if (filterPriority !== 'all') {
+    filteredResolutions = filteredResolutions.filter(r => r.priority === filterPriority)
+  }
+  if (sortBy === 'newest') {
+    filteredResolutions = [...filteredResolutions].sort((a, b) => 
+      new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    )
+  } else if (sortBy === 'oldest') {
+    filteredResolutions = [...filteredResolutions].sort((a, b) => 
+      new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+    )
+  }
+
+  // Group by status
+  const grouped = {
+    not_started: filteredResolutions.filter(r => {
+      const { status } = deriveResolutionProgress(r)
+      return status === 'not_started'
+    }),
+    in_progress: filteredResolutions.filter(r => {
+      const { status } = deriveResolutionProgress(r)
+      return status === 'in_progress'
+    }),
+    paused: filteredResolutions.filter(r => {
+      const { status } = deriveResolutionProgress(r)
+      return status === 'paused'
+    }),
+    done: filteredResolutions.filter(r => {
+      const { status } = deriveResolutionProgress(r)
+      return status === 'done'
+    })
+  }
+
+  const statusLabels: Record<Status, string> = {
+    not_started: "Not Started",
+    in_progress: "In Progress",
+    done: "Completed",
+    paused: "On Hold"
+  }
+
+  const getResolutionIcon = (category?: string): string => {
+    const iconMap: Record<string, string> = {
+      'Health & Fitness': '🏃',
+      'Learning': '📚',
+      'Career': '💼',
+      'Financial': '💰',
+      'Personal Growth': '⭐',
+    }
+    return iconMap[category || ''] || '🎯'
+  }
+
+  const renderProjectCard = (resolution: Resolution, currentColumnStatus: Status) => {
+    const { status, progress } = deriveResolutionProgress(resolution)
+    const icon = getResolutionIcon(resolution.category)
+    const priority = resolution.priority || 'medium'
+    const activeProgram = resolution.programs.find(p => p.id === resolution.activeProgramId) || resolution.programs[0]
+
+    return (
+      <div key={`${resolution.id}-${status}`} className="kanban-card">
+        <div className="kanban-card-header">
+          <span className="kanban-card-icon">{icon}</span>
+          <h3 className="kanban-card-title">{resolution.title}</h3>
+        </div>
+        {resolution.description && (
+          <p className="kanban-card-description">{resolution.description}</p>
+        )}
+        <div className="kanban-card-tags">
+          <span className={`priority-tag priority-${priority}`}>{priority}</span>
+          {resolution.category && (
+            <span className="category-tag">{resolution.category}</span>
+          )}
+        </div>
+        {explodeSprints && activeProgram && (
+          <div style={{ marginTop: '0.75rem', paddingTop: '0.75rem', borderTop: '1px solid #e0e0e0' }}>
+            {activeProgram.phases.sort((a, b) => a.index - b.index).map(phase => {
+              const requiredRemaining = phase.deliverables.filter(d => d.required && !d.completed).length
+              const { status: phaseStatus } = derivePhaseStatus(phase)
+              return (
+                <div
+                  key={phase.id}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    onSelectSprint(resolution.id, phase.id)
+                  }}
+                  style={{
+                    padding: '0.5rem',
+                    marginBottom: '0.25rem',
+                    cursor: 'pointer',
+                    borderRadius: '4px',
+                    backgroundColor: '#f5f5f5',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center'
+                  }}
+                >
+                  <div>
+                    <div style={{ fontWeight: 500 }}>{phase.title}</div>
+                    <div style={{ fontSize: '0.875rem', color: '#666' }}>
+                      {requiredRemaining} required remaining
+                    </div>
+                  </div>
+                  <span style={{
+                    padding: '0.25rem 0.5rem',
+                    borderRadius: '4px',
+                    fontSize: '0.75rem',
+                    backgroundColor: phaseStatus === 'done' ? '#4caf50' : phaseStatus === 'in_progress' ? '#2196f3' : '#ccc',
+                    color: 'white'
+                  }}>
+                    {statusLabels[phaseStatus]}
+                  </span>
+                </div>
+              )
+            })}
+          </div>
+        )}
+        <div className="kanban-card-actions">
+          <button
+            className="status-change-btn"
+            onClick={(e) => {
+              e.stopPropagation()
+              onSelectProject(resolution.id)
+            }}
+          >
+            Open Project
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <>
+      <div className="kanban-container">
+        <div className="kanban-header">
+          <div className="kanban-header-left">
+            <h1 className="kanban-title">My Projects</h1>
+          </div>
+          <div style={{ display: 'flex', gap: '0.5rem' }}>
+            <button onClick={onExport} className="btn-new-resolution" style={{ backgroundColor: '#666' }}>
+              Export
+            </button>
+            <button onClick={onImport} className="btn-new-resolution" style={{ backgroundColor: '#666' }}>
+              Import
+            </button>
+            <button onClick={() => setShowCreateModal(true)} className="btn-new-resolution">
+              + New Project
+            </button>
+          </div>
+        </div>
+
+        <div className="summary-cards">
+          <div className="summary-card">
+            <div className="summary-icon">📊</div>
+            <div className="summary-number">{total}</div>
+            <div className="summary-label">Total</div>
+          </div>
+          <div className="summary-card">
+            <div className="summary-icon">⏰</div>
+            <div className="summary-number">{inProgress}</div>
+            <div className="summary-label">In Progress</div>
+          </div>
+          <div className="summary-card">
+            <div className="summary-icon">✓</div>
+            <div className="summary-number">{completed}</div>
+            <div className="summary-label">Completed</div>
+          </div>
+          <div className="summary-card">
+            <div className="summary-icon">🔥</div>
+            <div className="summary-number">{highPriority}</div>
+            <div className="summary-label">High Priority</div>
+          </div>
+        </div>
+
+        <div className="filter-bar">
+          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+            <label>
+              <input
+                type="checkbox"
+                checked={explodeSprints}
+                onChange={(e) => setExplodeSprints(e.target.checked)}
+                style={{ marginRight: '0.5rem' }}
+              />
+              Explode sprints
+            </label>
+          </div>
+          <div style={{ display: 'flex', gap: '0.5rem' }}>
+            <select className="filter-select" value={filterCategory} onChange={(e) => setFilterCategory(e.target.value)}>
+              <option value="all">All Categories</option>
+              <option value="Health & Fitness">🏃 Health & Fitness</option>
+              <option value="Learning">📚 Learning</option>
+              <option value="Career">💼 Career</option>
+              <option value="Financial">💰 Financial</option>
+              <option value="Personal Growth">⭐ Personal Growth</option>
+            </select>
+            <select className="filter-select" value={filterPriority} onChange={(e) => setFilterPriority(e.target.value)}>
+              <option value="all">All Priorities</option>
+              <option value="high">High</option>
+              <option value="medium">Medium</option>
+              <option value="low">Low</option>
+            </select>
+            <select className="filter-select" value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
+              <option value="newest">Newest First</option>
+              <option value="oldest">Oldest First</option>
+            </select>
+          </div>
+        </div>
+
+        {filteredResolutions.length === 0 ? (
+          <div className="empty-state">
+            <p>No projects yet. Create your first project to get started!</p>
+          </div>
+        ) : (
+          <div className="kanban-board">
+            <div className="kanban-column">
+              <div className="kanban-column-header">
+                <span className="kanban-column-icon">○</span>
+                <h2 className="kanban-column-title">Not Started</h2>
+                <span className="kanban-column-count">{grouped.not_started.length}</span>
+              </div>
+              <div className="kanban-column-content">
+                {grouped.not_started.map(r => renderProjectCard(r, 'not_started'))}
+              </div>
+            </div>
+            <div className="kanban-column">
+              <div className="kanban-column-header">
+                <span className="kanban-column-icon">⏰</span>
+                <h2 className="kanban-column-title">In Progress</h2>
+                <span className="kanban-column-count">{grouped.in_progress.length}</span>
+              </div>
+              <div className="kanban-column-content">
+                {grouped.in_progress.map(r => renderProjectCard(r, 'in_progress'))}
+              </div>
+            </div>
+            <div className="kanban-column">
+              <div className="kanban-column-header">
+                <span className="kanban-column-icon">⏸</span>
+                <h2 className="kanban-column-title">On Hold</h2>
+                <span className="kanban-column-count">{grouped.paused.length}</span>
+              </div>
+              <div className="kanban-column-content">
+                {grouped.paused.map(r => renderProjectCard(r, 'paused'))}
+              </div>
+            </div>
+            <div className="kanban-column">
+              <div className="kanban-column-header">
+                <span className="kanban-column-icon">✓</span>
+                <h2 className="kanban-column-title">Completed</h2>
+                <span className="kanban-column-count">{grouped.done.length}</span>
+              </div>
+              <div className="kanban-column-content">
+                {grouped.done.map(r => renderProjectCard(r, 'done'))}
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      <CreateResolutionModal
+        isOpen={showCreateModal}
+        onClose={() => setShowCreateModal(false)}
+        onCreate={onCreateProject}
+      />
+    </>
+  )
+}
+
+// Project View - All Sprints in a Project
+function ProjectView({
+  resolution,
+  onBack,
+  onSelectSprint,
+  onUpdateWorkspace
+}: {
+  resolution: Resolution
+  onBack: () => void
+  onSelectSprint: (sprintId: string) => void
+  onUpdateWorkspace: (ws: WorkspaceState) => void
+}) {
+  const activeProgram = resolution.programs.find(p => p.id === resolution.activeProgramId) || resolution.programs[0]
+  const { status, progress } = activeProgram ? deriveProgramProgress(activeProgram) : { status: 'not_started' as Status, progress: 0 }
+
+  const statusLabels: Record<Status, string> = {
+    not_started: "Not Started",
+    in_progress: "In Progress",
+    done: "Done",
+    paused: "Paused"
+  }
+
+  return (
+    <div style={{ padding: '2rem' }}>
+      <button onClick={onBack} style={{ marginBottom: '1rem', padding: '0.5rem 1rem', cursor: 'pointer' }}>
+        ← Back to Projects
+      </button>
+      
+      <div style={{ marginBottom: '2rem' }}>
+        <h1 style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>{resolution.title}</h1>
+        {resolution.description && (
+          <p style={{ color: '#666', marginBottom: '1rem' }}>{resolution.description}</p>
+        )}
+        <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+          <div style={{ flex: 1 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+              <span>Progress</span>
+              <span>{progress}%</span>
+            </div>
+            <div style={{ width: '100%', height: '8px', backgroundColor: '#e0e0e0', borderRadius: '4px', overflow: 'hidden' }}>
+              <div style={{ width: `${progress}%`, height: '100%', backgroundColor: '#4caf50', transition: 'width 0.3s' }} />
+            </div>
+          </div>
+          <span style={{
+            padding: '0.5rem 1rem',
+            borderRadius: '4px',
+            backgroundColor: status === 'done' ? '#4caf50' : status === 'in_progress' ? '#2196f3' : status === 'paused' ? '#ff9800' : '#ccc',
+            color: 'white',
+            fontWeight: 500
+          }}>
+            {statusLabels[status]}
+          </span>
+        </div>
+      </div>
+
+      <h2 style={{ fontSize: '1.5rem', marginBottom: '1rem' }}>Sprints</h2>
+      {activeProgram ? (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '1rem' }}>
+          {activeProgram.phases.sort((a, b) => a.index - b.index).map(phase => {
+            const requiredRemaining = phase.deliverables.filter(d => d.required && !d.completed).length
+            const totalRequired = phase.deliverables.filter(d => d.required).length
+            const phaseProgress = totalRequired > 0 ? Math.round((totalRequired - requiredRemaining) / totalRequired * 100) : 0
+            const { status: phaseStatus } = derivePhaseStatus(phase)
+            return (
+              <div
+                key={phase.id}
+                style={{
+                  border: '1px solid #e0e0e0',
+                  borderRadius: '8px',
+                  padding: '1rem',
+                  cursor: 'pointer',
+                  transition: 'box-shadow 0.2s'
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.1)'}
+                onMouseLeave={(e) => e.currentTarget.style.boxShadow = 'none'}
+                onClick={() => onSelectSprint(phase.id)}
+              >
+                <h3 style={{ fontSize: '1.25rem', marginBottom: '0.5rem' }}>{phase.title}</h3>
+                <div style={{ marginBottom: '0.5rem' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.25rem' }}>
+                    <span style={{ fontSize: '0.875rem', color: '#666' }}>Progress</span>
+                    <span style={{ fontSize: '0.875rem', color: '#666' }}>{phaseProgress}%</span>
+                  </div>
+                  <div style={{ width: '100%', height: '6px', backgroundColor: '#e0e0e0', borderRadius: '3px', overflow: 'hidden' }}>
+                    <div style={{ width: `${phaseProgress}%`, height: '100%', backgroundColor: '#4caf50', transition: 'width 0.3s' }} />
+                  </div>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                  <span style={{ fontSize: '0.875rem', color: '#666' }}>
+                    {requiredRemaining} required {requiredRemaining === 1 ? 'task' : 'tasks'} remaining
+                  </span>
+                  <span style={{
+                    padding: '0.25rem 0.5rem',
+                    borderRadius: '4px',
+                    fontSize: '0.75rem',
+                    backgroundColor: phaseStatus === 'done' ? '#4caf50' : phaseStatus === 'in_progress' ? '#2196f3' : '#ccc',
+                    color: 'white'
+                  }}>
+                    {statusLabels[phaseStatus]}
+                  </span>
+                </div>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    onSelectSprint(phase.id)
+                  }}
+                  style={{
+                    width: '100%',
+                    padding: '0.5rem',
+                    marginTop: '0.5rem',
+                    backgroundColor: '#2196f3',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '4px',
+                    cursor: 'pointer',
+                    fontWeight: 500
+                  }}
+                >
+                  Work on this sprint
+                </button>
+              </div>
+            )
+          })}
+        </div>
+      ) : (
+        <p>No sprints available.</p>
+      )}
+    </div>
+  )
+}
+
+// Sprint View - Mixed Work Mode
+function SprintView({
+  resolution,
+  phase,
+  workspace,
+  onBack,
+  onUpdateWorkspace
+}: {
+  resolution: Resolution
+  phase: Phase
+  workspace: WorkspaceState
+  onBack: () => void
+  onUpdateWorkspace: (ws: WorkspaceState) => void
+}) {
+  const [showCreateTaskModal, setShowCreateTaskModal] = useState(false)
+  const [expandedDeliverableId, setExpandedDeliverableId] = useState<string | null>(null)
+
+  const status = derivePhaseStatus(phase)
+  const requiredDeliverables = phase.deliverables.filter(d => d.required)
+  const completedRequired = requiredDeliverables.filter(d => d.completed).length
+  const progress = requiredDeliverables.length > 0 ? Math.round((completedRequired / requiredDeliverables.length) * 100) : 0
+  const statusLabels: Record<Status, string> = {
+    not_started: "Not Started",
+    in_progress: "In Progress",
+    done: "Done",
+    paused: "Paused"
+  }
+
+  // Group deliverables by status for kanban (using deriveDeliverableStatus for single source of truth)
+  const groupedDeliverables = {
+    not_started: phase.deliverables.filter(d => deriveDeliverableStatus(d) === 'not_started'),
+    in_progress: phase.deliverables.filter(d => deriveDeliverableStatus(d) === 'in_progress'),
+    paused: phase.deliverables.filter(d => deriveDeliverableStatus(d) === 'paused'),
+    done: phase.deliverables.filter(d => deriveDeliverableStatus(d) === 'done')
+  }
+
+  const handleJumpToDeliverable = (deliverableIndex: number) => {
+    const deliverableId = `task-${phase.id}-${deliverableIndex}`
+    setExpandedDeliverableId(deliverableId)
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        const element = document.getElementById(deliverableId)
+        if (element) {
+          element.scrollIntoView({ behavior: 'smooth', block: 'center' })
+          // Add temporary highlight
+          element.style.outline = '3px solid #2196f3'
+          element.style.outlineOffset = '2px'
+          element.style.transition = 'outline 0.1s'
+          setTimeout(() => {
+            element.style.outline = 'none'
+            setTimeout(() => {
+              element.style.transition = ''
+            }, 1200)
+          }, 1200)
+        }
+      })
+    })
+  }
+
+  const handleCreateTask = (label: string, required?: boolean, kind?: "link" | "text" | "file") => {
+    if (!workspace) return
+    const now = new Date().toISOString()
+    const newDeliverable: Deliverable = {
+      label,
+      kind: kind || 'text',
+      required: required || false,
+      completed: false,
+      onHold: false,
+      updatedAt: now
+    }
+    const updated = {
+      ...workspace,
+      resolutions: workspace.resolutions.map(res =>
+        res.id === resolution.id
+          ? {
+              ...res,
+              programs: res.programs.map(program =>
+                program.id === resolution.activeProgramId
+                  ? {
+                      ...program,
+                      phases: program.phases.map(p =>
+                        p.id === phase.id
+                          ? {
+                              ...p,
+                              deliverables: [...p.deliverables, newDeliverable],
+                              updatedAt: now
+                            }
+                          : p
+                      )
+                    }
+                  : program
+              ),
+              updatedAt: now
+            }
+          : res
+      ),
+      updatedAt: now
+    }
+    onUpdateWorkspace(updated)
+  }
+
+  const handleDeliverableComplete = (deliverableIndex: number, completed: boolean) => {
+    if (!workspace) return
+    const now = new Date().toISOString()
+    const updated = {
+      ...workspace,
+      resolutions: workspace.resolutions.map(res =>
+        res.id === resolution.id
+          ? {
+              ...res,
+              programs: res.programs.map(program =>
+                program.id === resolution.activeProgramId
+                  ? {
+                      ...program,
+                      phases: program.phases.map(p => {
+                        if (p.id !== phase.id) return p
+                        const updatedDeliverables = p.deliverables.map((d, idx) =>
+                          idx === deliverableIndex
+                            ? { ...d, completed, updatedAt: now }
+                            : d
+                        )
+                        const updatedPhase = { ...p, deliverables: updatedDeliverables, updatedAt: now }
+                        const derivedStatus = derivePhaseStatus(updatedPhase)
+                        return { ...updatedPhase, status: derivedStatus }
+                      })
+                    }
+                  : program
+              ),
+              updatedAt: now
+            }
+          : res
+      ),
+      updatedAt: now
+    }
+    onUpdateWorkspace(updated)
+  }
+
+  const handleDeliverableValueChange = (deliverableIndex: number, value: string) => {
+    if (!workspace) return
+    const now = new Date().toISOString()
+    const updated = {
+      ...workspace,
+      resolutions: workspace.resolutions.map(res =>
+        res.id === resolution.id
+          ? {
+              ...res,
+              programs: res.programs.map(program =>
+                program.id === resolution.activeProgramId
+                  ? {
+                      ...program,
+                      phases: program.phases.map(p => {
+                        if (p.id !== phase.id) return p
+                        const updatedDeliverables = p.deliverables.map((d, idx) =>
+                          idx === deliverableIndex
+                            ? { ...d, value, updatedAt: now }
+                            : d
+                        )
+                        const updatedPhase = { ...p, deliverables: updatedDeliverables, updatedAt: now }
+                        const derivedStatus = derivePhaseStatus(updatedPhase)
+                        return { ...updatedPhase, status: derivedStatus }
+                      })
+                    }
+                  : program
+              ),
+              updatedAt: now
+            }
+          : res
+      ),
+      updatedAt: now
+    }
+    onUpdateWorkspace(updated)
+  }
+
+  const handleDeliverableOnHold = (deliverableIndex: number, onHold: boolean) => {
+    if (!workspace) return
+    const now = new Date().toISOString()
+    const updated = {
+      ...workspace,
+      resolutions: workspace.resolutions.map(res =>
+        res.id === resolution.id
+          ? {
+              ...res,
+              programs: res.programs.map(program =>
+                program.id === resolution.activeProgramId
+                  ? {
+                      ...program,
+                      phases: program.phases.map(p => {
+                        if (p.id !== phase.id) return p
+                        const updatedDeliverables = p.deliverables.map((d, idx) =>
+                          idx === deliverableIndex
+                            ? { ...d, onHold, updatedAt: now }
+                            : d
+                        )
+                        const updatedPhase = { ...p, deliverables: updatedDeliverables, updatedAt: now }
+                        const derivedStatus = derivePhaseStatus(updatedPhase)
+                        return { ...updatedPhase, status: derivedStatus }
+                      })
+                    }
+                  : program
+              ),
+              updatedAt: now
+            }
+          : res
+      ),
+      updatedAt: now
+    }
+    onUpdateWorkspace(updated)
+  }
+
+  const handleNotesChange = (notes: string) => {
+    if (!workspace) return
+    const now = new Date().toISOString()
+    const updated = {
+      ...workspace,
+      resolutions: workspace.resolutions.map(res =>
+        res.id === resolution.id
+          ? {
+              ...res,
+              programs: res.programs.map(program =>
+                program.id === resolution.activeProgramId
+                  ? {
+                      ...program,
+                      phases: program.phases.map(p =>
+                        p.id === phase.id
+                          ? { ...p, notes, updatedAt: now }
+                          : p
+                      )
+                    }
+                  : program
+              ),
+              updatedAt: now
+            }
+          : res
+      ),
+      updatedAt: now
+    }
+    onUpdateWorkspace(updated)
+  }
+
+  const renderTaskCard = (deliverable: Deliverable, index: number) => {
+    const taskId = `task-${phase.id}-${index}`
+    const isOnHold = deliverable.onHold === true
+    const hasEvidence = deliverable.value && deliverable.value.trim().length > 0
+    const isExpanded = expandedDeliverableId === taskId || hasEvidence
+    
+    return (
+      <div
+        key={index}
+        id={taskId}
+        className="kanban-card"
+        style={{ marginBottom: '0.75rem' }}
+      >
+        <div className="kanban-card-header" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', width: '100%' }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', flex: 1, minWidth: 0 }}>
+            <input
+              type="checkbox"
+              checked={deliverable.completed}
+              onChange={(e) => handleDeliverableComplete(index, e.target.checked)}
+              style={{ flexShrink: 0 }}
+            />
+            <span className="kanban-card-title" style={{ fontSize: '1rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {deliverable.label}
+            </span>
+          </label>
+          {deliverable.required && (
+            <span className="required-badge" style={{ flexShrink: 0 }}>Required</span>
+          )}
+          <button
+            onClick={(e) => {
+              e.stopPropagation()
+              handleDeliverableOnHold(index, !isOnHold)
+            }}
+            style={{
+              padding: '0.25rem 0.5rem',
+              fontSize: '0.75rem',
+              border: '1px solid #ccc',
+              borderRadius: '4px',
+              backgroundColor: isOnHold ? '#ff9800' : 'transparent',
+              color: isOnHold ? 'white' : '#666',
+              cursor: 'pointer',
+              whiteSpace: 'nowrap',
+              flexShrink: 0,
+              marginLeft: 'auto'
+            }}
+            title={isOnHold ? 'Resume task' : 'Put task on hold'}
+          >
+            {isOnHold ? '▶ Resume' : '⏸ Put On Hold'}
+          </button>
+        </div>
+        {(isExpanded || hasEvidence) && (
+          <div style={{ marginTop: '0.5rem' }}>
+            {deliverable.kind === "link" && (
+              <input
+                type="url"
+                value={deliverable.value || ""}
+                onChange={(e) => handleDeliverableValueChange(index, e.target.value)}
+                placeholder="Enter URL..."
+                className="evidence-input"
+                style={{ width: '100%' }}
+              />
+            )}
+            {deliverable.kind === "text" && (
+              <textarea
+                value={deliverable.value || ""}
+                onChange={(e) => handleDeliverableValueChange(index, e.target.value)}
+                placeholder="Enter text..."
+                className="evidence-textarea"
+                rows={2}
+                style={{ width: '100%' }}
+              />
+            )}
+            {deliverable.kind === "file" && (
+              <div className="file-placeholder">file attachment (later)</div>
+            )}
+          </div>
+        )}
+        {!isExpanded && !hasEvidence && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation()
+              setExpandedDeliverableId(taskId)
+            }}
+            style={{
+              marginTop: '0.5rem',
+              padding: '0.25rem 0.5rem',
+              fontSize: '0.75rem',
+              color: '#666',
+              border: '1px dashed #ccc',
+              borderRadius: '4px',
+              backgroundColor: 'transparent',
+              cursor: 'pointer',
+              width: '100%'
+            }}
+          >
+            ▶ Show details
+          </button>
+        )}
+        {isExpanded && !hasEvidence && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation()
+              setExpandedDeliverableId(null)
+            }}
+            style={{
+              marginTop: '0.5rem',
+              padding: '0.25rem 0.5rem',
+              fontSize: '0.75rem',
+              color: '#666',
+              border: 'none',
+              backgroundColor: 'transparent',
+              cursor: 'pointer',
+              textAlign: 'left'
+            }}
+          >
+            ▼ Hide details
+          </button>
+        )}
+      </div>
+    )
+  }
+
+  return (
+    <div style={{ padding: '2rem' }}>
+      {/* Header */}
+      <div style={{ marginBottom: '2rem' }}>
+        <button onClick={onBack} style={{ marginBottom: '1rem', padding: '0.5rem 1rem', cursor: 'pointer' }}>
+          ← Back to Project
+        </button>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+          <div>
+            <h1 style={{ fontSize: '2rem', marginBottom: '0.25rem' }}>{phase.title}</h1>
+            <p style={{ color: '#666', fontSize: '0.875rem' }}>Project: {resolution.title}</p>
+          </div>
+          <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+            <span style={{
+              padding: '0.5rem 1rem',
+              borderRadius: '4px',
+              backgroundColor: status === 'done' ? '#4caf50' : status === 'in_progress' ? '#2196f3' : status === 'paused' ? '#ff9800' : '#ccc',
+              color: 'white',
+              fontWeight: 500
+            }}>
+              {statusLabels[status]} • {progress}%
+            </span>
+            <button
+              onClick={() => setShowCreateTaskModal(true)}
+              className="btn-new-resolution"
+            >
+              + New Task
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Focus Strip */}
+      <SprintFocus phase={phase} onJumpToDeliverable={handleJumpToDeliverable} />
+
+      {/* Goals + Notes */}
+      <div style={{ marginBottom: '2rem' }}>
+        {phase.goals.length > 0 && (
+          <div style={{ marginBottom: '1rem' }}>
+            <h3 style={{ fontSize: '1.25rem', marginBottom: '0.5rem' }}>Sprint Goals</h3>
+            <ul style={{ marginLeft: '1.5rem' }}>
+              {phase.goals.map((goal, idx) => (
+                <li key={idx} style={{ marginBottom: '0.25rem' }}>{goal}</li>
+              ))}
+            </ul>
+          </div>
+        )}
+        <div>
+          <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500 }}>Notes</label>
+          <textarea
+            value={phase.notes}
+            onChange={(e) => handleNotesChange(e.target.value)}
+            placeholder="Add notes for this sprint..."
+            className="notes-input"
+            rows={3}
+            style={{ width: '100%' }}
+          />
+        </div>
+      </div>
+
+      {/* Kanban Board */}
+      <div>
+        <h3 style={{ fontSize: '1.25rem', marginBottom: '1rem' }}>Tasks</h3>
+        <div className="kanban-board">
+          <div className="kanban-column">
+            <div className="kanban-column-header">
+              <span className="kanban-column-icon">○</span>
+              <h2 className="kanban-column-title">Not Started</h2>
+              <span className="kanban-column-count">{groupedDeliverables.not_started.length}</span>
+            </div>
+            <div className="kanban-column-content">
+              {groupedDeliverables.not_started.length === 0 ? (
+                <div style={{ 
+                  padding: '2rem 1rem', 
+                  textAlign: 'center', 
+                  color: '#999', 
+                  fontSize: '0.875rem',
+                  border: '1px dashed #e0e0e0',
+                  borderRadius: '4px',
+                  backgroundColor: '#fafafa'
+                }}>
+                  No tasks
+                </div>
+              ) : (
+                groupedDeliverables.not_started.map((d, idx) => {
+                  const originalIndex = phase.deliverables.findIndex(del => del === d)
+                  return renderTaskCard(d, originalIndex)
+                })
+              )}
+            </div>
+          </div>
+          <div className="kanban-column">
+            <div className="kanban-column-header">
+              <span className="kanban-column-icon">⏰</span>
+              <h2 className="kanban-column-title">In Progress</h2>
+              <span className="kanban-column-count">{groupedDeliverables.in_progress.length}</span>
+            </div>
+            <div className="kanban-column-content">
+              {groupedDeliverables.in_progress.length === 0 ? (
+                <div style={{ 
+                  padding: '2rem 1rem', 
+                  textAlign: 'center', 
+                  color: '#999', 
+                  fontSize: '0.875rem',
+                  border: '1px dashed #e0e0e0',
+                  borderRadius: '4px',
+                  backgroundColor: '#fafafa'
+                }}>
+                  No tasks
+                </div>
+              ) : (
+                groupedDeliverables.in_progress.map((d, idx) => {
+                  const originalIndex = phase.deliverables.findIndex(del => del === d)
+                  return renderTaskCard(d, originalIndex)
+                })
+              )}
+            </div>
+          </div>
+          <div className="kanban-column">
+            <div className="kanban-column-header">
+              <span className="kanban-column-icon">⏸</span>
+              <h2 className="kanban-column-title">On Hold</h2>
+              <span className="kanban-column-count">{groupedDeliverables.paused.length}</span>
+            </div>
+            <div className="kanban-column-content">
+              {groupedDeliverables.paused.length === 0 ? (
+                <div style={{ 
+                  padding: '2rem 1rem', 
+                  textAlign: 'center', 
+                  color: '#999', 
+                  fontSize: '0.875rem',
+                  border: '1px dashed #e0e0e0',
+                  borderRadius: '4px',
+                  backgroundColor: '#fafafa'
+                }}>
+                  No tasks
+                </div>
+              ) : (
+                groupedDeliverables.paused.map((d, idx) => {
+                  const originalIndex = phase.deliverables.findIndex(del => del === d)
+                  return renderTaskCard(d, originalIndex)
+                })
+              )}
+            </div>
+          </div>
+          <div className="kanban-column">
+            <div className="kanban-column-header">
+              <span className="kanban-column-icon">✓</span>
+              <h2 className="kanban-column-title">Completed</h2>
+              <span className="kanban-column-count">{groupedDeliverables.done.length}</span>
+            </div>
+            <div className="kanban-column-content">
+              {groupedDeliverables.done.length === 0 ? (
+                <div style={{ 
+                  padding: '2rem 1rem', 
+                  textAlign: 'center', 
+                  color: '#999', 
+                  fontSize: '0.875rem',
+                  border: '1px dashed #e0e0e0',
+                  borderRadius: '4px',
+                  backgroundColor: '#fafafa'
+                }}>
+                  No tasks
+                </div>
+              ) : (
+                groupedDeliverables.done.map((d, idx) => {
+                  const originalIndex = phase.deliverables.findIndex(del => del === d)
+                  return renderTaskCard(d, originalIndex)
+                })
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <CreateTaskModal
+        isOpen={showCreateTaskModal}
+        onClose={() => setShowCreateTaskModal(false)}
+        onCreate={handleCreateTask}
+      />
+    </div>
+  )
+}
+
 function App() {
   const [workspace, setWorkspace] = useState<WorkspaceState | null>(null)
-  const [view, setView] = useState<View>('home')
+  const [scope, setScope] = useState<Scope>('portfolio')
+  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null)
+  const [selectedSprintId, setSelectedSprintId] = useState<string | null>(null)
   const [selectedResolutionId, setSelectedResolutionId] = useState<string | null>(null)
 
   // Helper to apply derived status to all phases in a workspace
@@ -1059,10 +2286,11 @@ function App() {
     if (JSON.stringify(loaded) !== JSON.stringify(withDerivedStatuses)) {
       saveWorkspaceState(withDerivedStatuses)
     }
-    // Always start on home view (dashboard)
-    setView('home')
-    // Preserve selectedResolutionId if available, but don't auto-navigate
+    // Always start on portfolio scope (default home)
+    setScope('portfolio')
+    // Preserve IDs if available, but don't auto-navigate
     if (loaded.activeResolutionId) {
+      setSelectedProjectId(loaded.activeResolutionId)
       setSelectedResolutionId(loaded.activeResolutionId)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1080,13 +2308,23 @@ function App() {
     category?: string, 
     priority?: Priority, 
     imageUrl?: string, 
-    status?: Status
+    status?: Status,
+    useTemplate?: boolean
   ) => {
     if (!workspace) return
 
     const now = new Date().toISOString()
-    // Create a blank program for new tasks
-    const program = createBlankProgram('Main Program')
+    // Create program based on template choice
+    const program = useTemplate
+      ? createAIDailyBrief10WeekProgram()
+      : (() => {
+          const blankProgram = createBlankProgram('Main Program')
+          // Rename the first phase to "Sprint 1"
+          if (blankProgram.phases.length > 0) {
+            blankProgram.phases[0].title = 'Sprint 1'
+          }
+          return blankProgram
+        })()
     
     // If status is provided, set the program status to match
     if (status) {
@@ -1104,8 +2342,8 @@ function App() {
       updatedAt: now
     }
     updateWorkspace(updated)
-    // Stay on home view (Kanban board) after creating resolution
-    setView('home')
+    // Stay on portfolio scope after creating project
+    setScope('portfolio')
   }
 
   const handleStatusChange = (resolutionId: string, newStatus: Status) => {
@@ -1148,9 +2386,8 @@ function App() {
     saveWorkspaceState(updated)
   }
 
-  const handleSelectResolution = (id: string) => {
-    // In Kanban view, this just sets the selected ID which opens the sidebar
-    // No need to navigate to detail view anymore
+  const handleSelectProject = (id: string) => {
+    setSelectedProjectId(id)
     setSelectedResolutionId(id)
     const now = new Date().toISOString()
     const updated = {
@@ -1159,8 +2396,13 @@ function App() {
       updatedAt: now
     }
     updateWorkspace(updated)
-    // Stay on home view - sidebar will open automatically
-    setView('home')
+    setScope('project')
+  }
+
+  const handleSelectSprint = (projectId: string, sprintId: string) => {
+    setSelectedProjectId(projectId)
+    setSelectedSprintId(sprintId)
+    setScope('sprint')
   }
 
   const handleExport = () => {
@@ -1191,9 +2433,10 @@ function App() {
           const withDerivedStatuses = applyDerivedStatuses(loaded)
           setWorkspace(withDerivedStatuses)
           saveWorkspaceState(withDerivedStatuses)
-          // Always return to home view after import
-          setView('home')
+          // Always return to portfolio scope after import
+          setScope('portfolio')
           if (loaded.activeResolutionId) {
+            setSelectedProjectId(loaded.activeResolutionId)
             setSelectedResolutionId(loaded.activeResolutionId)
           }
           alert('Workspace imported successfully!')
@@ -1210,7 +2453,9 @@ function App() {
     return <div className="loading">Loading...</div>
   }
 
-  const selectedResolution = workspace.resolutions.find(r => r.id === selectedResolutionId) || null
+  const selectedProject = workspace.resolutions.find(r => r.id === selectedProjectId) || null
+  const activeProgram = selectedProject?.programs.find(p => p.id === selectedProject?.activeProgramId) || selectedProject?.programs[0]
+  const selectedPhase = activeProgram?.phases.find(p => p.id === selectedSprintId) || null
 
   return (
     <div className="app">
@@ -1219,25 +2464,33 @@ function App() {
         <p className="app-subtitle">Track your progress through resolutions, programs, and phases</p>
       </header>
       <main className="main-content">
-        {view === 'home' && (
-          <HomeView
+        {scope === 'portfolio' && (
+          <PortfolioView
             resolutions={workspace.resolutions}
-            onSelectResolution={handleSelectResolution}
-            onCreateResolution={handleCreateResolution}
+            onSelectProject={handleSelectProject}
+            onSelectSprint={handleSelectSprint}
+            onCreateProject={handleCreateResolution}
             onStatusChange={handleStatusChange}
             onExport={handleExport}
             onImport={handleImport}
           />
         )}
-        {view === 'resolution-detail' && selectedResolution && (
-          <div className="detail-container">
-            <ResolutionDetailView
-              resolution={selectedResolution}
-              workspace={workspace}
-              onBack={() => setView('home')}
-              onUpdateWorkspace={updateWorkspace}
-            />
-          </div>
+        {scope === 'project' && selectedProject && (
+          <ProjectView
+            resolution={selectedProject}
+            onBack={() => setScope('portfolio')}
+            onSelectSprint={(sprintId) => handleSelectSprint(selectedProject.id, sprintId)}
+            onUpdateWorkspace={updateWorkspace}
+          />
+        )}
+        {scope === 'sprint' && selectedProject && selectedPhase && (
+          <SprintView
+            resolution={selectedProject}
+            phase={selectedPhase}
+            workspace={workspace}
+            onBack={() => setScope('project')}
+            onUpdateWorkspace={updateWorkspace}
+          />
         )}
       </main>
     </div>
