@@ -37,20 +37,59 @@ export type Program = {
   phases: Phase[];
 };
 
-export type WorkspaceState = {
-  version: 2;
+export type Priority = "high" | "medium" | "low";
+
+export type Resolution = {
+  id: string;
+  title: string;
+  description?: string;
+  category?: string;
+  priority?: Priority;
+  imageUrl?: string;
   createdAt: string; // ISO
   updatedAt: string; // ISO
   programs: Program[];
+  activeProgramId?: string;
+};
+
+export type WorkspaceState = {
+  version: 3;
+  createdAt: string; // ISO
+  updatedAt: string; // ISO
+  resolutions: Resolution[];
+  activeResolutionId?: string;
 };
 
 export function createDefaultWorkspaceState(): WorkspaceState {
   const now = new Date().toISOString();
   return {
-    version: 2,
+    version: 3,
     createdAt: now,
     updatedAt: now,
-    programs: [],
+    resolutions: [],
+  };
+}
+
+export function createDefaultResolution(
+  title: string,
+  description?: string,
+  category?: string,
+  priority?: Priority,
+  imageUrl?: string,
+  programs: Program[] = []
+): Resolution {
+  const now = new Date().toISOString();
+  return {
+    id: `resolution-${Date.now()}`,
+    title,
+    description,
+    category,
+    priority: priority || "medium",
+    imageUrl,
+    createdAt: now,
+    updatedAt: now,
+    programs,
+    activeProgramId: programs.length > 0 ? programs[0].id : undefined,
   };
 }
 
@@ -109,5 +148,38 @@ export function derivePhaseStatus(phase: Phase): Status {
   }
   
   return "not_started";
+}
+
+/**
+ * Derives program progress and status from its phases
+ * program.status takes precedence - if it's set, use it directly
+ * Otherwise derive from phases
+ */
+export function deriveProgramProgress(program: Program): { status: Status; progress: number } {
+  // Calculate progress from phases
+  let progress = 0
+  if (program.phases.length > 0) {
+    const donePhases = program.phases.filter(p => p.status === "done").length
+    progress = (donePhases / program.phases.length) * 100
+  }
+
+  // Always use program.status if it's set (allows manual status overrides)
+  // Only derive from phases if program.status is not meaningful
+  // Since program.status is always set (has default), we use it directly
+  const status = program.status || "not_started"
+
+  return { status, progress: Math.round(progress) }
+}
+
+/**
+ * Derives resolution status and progress from active program (or first program)
+ */
+export function deriveResolutionProgress(resolution: Resolution): { status: Status; progress: number } {
+  if (resolution.programs.length === 0) {
+    return { status: "not_started", progress: 0 };
+  }
+
+  const activeProgram = resolution.programs.find(p => p.id === resolution.activeProgramId) || resolution.programs[0];
+  return deriveProgramProgress(activeProgram);
 }
 

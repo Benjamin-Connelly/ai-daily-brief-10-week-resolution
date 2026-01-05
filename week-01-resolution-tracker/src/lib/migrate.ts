@@ -1,6 +1,14 @@
 import type { ResolutionState } from "./schema";
-import { createDefaultWorkspaceState, createDefaultProgram, createDefaultPhase } from "./model";
-import type { Phase, Deliverable } from "./model";
+import { createDefaultWorkspaceState, createDefaultProgram, createDefaultPhase, createDefaultResolution } from "./model";
+import type { Phase, Deliverable, WorkspaceState, Resolution, Program } from "./model";
+
+// Legacy v2 WorkspaceState type for migration
+type WorkspaceStateV2 = {
+  version: 2;
+  createdAt: string;
+  updatedAt: string;
+  programs: Program[];
+};
 
 // Week definitions from the PDF-like structure (deliverables without completed/updatedAt - added during migration)
 export const WEEK_DEFINITIONS: Array<{
@@ -169,5 +177,43 @@ export function migrateV1ToV2(v1State: ResolutionState) {
   v2State.updatedAt = new Date().toISOString();
 
   return v2State;
+}
+
+/**
+ * Migrates v2 WorkspaceState (programs at root) to v3 (resolutions containing programs)
+ */
+export function migrateV2ToV3(v2State: WorkspaceStateV2): WorkspaceState {
+  const now = new Date().toISOString();
+  
+  // If no programs, return empty v3 state
+  if (!v2State.programs || v2State.programs.length === 0) {
+    return {
+      version: 3,
+      createdAt: v2State.createdAt || now,
+      updatedAt: now,
+      resolutions: [],
+    };
+  }
+
+  // Wrap existing programs into a default resolution
+  const resolution: Resolution = createDefaultResolution(
+    "AI Skill Development",
+    "Migrated from previous workspace",
+    undefined,
+    v2State.programs
+  );
+
+  // Set active program if there was a selection (we'll infer from first program for now)
+  if (v2State.programs.length > 0) {
+    resolution.activeProgramId = v2State.programs[0].id;
+  }
+
+  return {
+    version: 3,
+    createdAt: v2State.createdAt || now,
+    updatedAt: now,
+    resolutions: [resolution],
+    activeResolutionId: resolution.id,
+  };
 }
 

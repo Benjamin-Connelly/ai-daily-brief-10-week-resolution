@@ -1,25 +1,42 @@
-import { createDefaultWorkspaceState, createDefaultProgram, createDefaultPhase, derivePhaseStatus } from "./model";
+import { createDefaultWorkspaceState, createDefaultProgram, createDefaultPhase, derivePhaseStatus, createDefaultResolution } from "./model";
 import type { WorkspaceState } from "./model";
-import { migrateV1ToV2, WEEK_DEFINITIONS } from "./migrate";
+import { migrateV1ToV2, migrateV2ToV3, WEEK_DEFINITIONS } from "./migrate";
 import type { ResolutionState } from "./schema";
+import { createAIDailyBrief10WeekProgram } from "./templates";
 
 const KEY_V1 = "ai_resolution_state_v1";
 const KEY_V2 = "ai_workspace_state_v2";
+const KEY_V3 = "ai_workspace_state_v3";
 
 export function loadWorkspaceState(): WorkspaceState {
   try {
-    // Try v2 first
-    const v2Raw = localStorage.getItem(KEY_V2);
-    if (v2Raw) {
-      const parsed = JSON.parse(v2Raw) as WorkspaceState;
-      if (parsed && parsed.version === 2 && Array.isArray(parsed.programs)) {
-        // If programs array is empty, create default program
-        if (parsed.programs.length === 0) {
-          const defaultState = createDefaultAIProgram();
+    // Try v3 first
+    const v3Raw = localStorage.getItem(KEY_V3);
+    if (v3Raw) {
+      const parsed = JSON.parse(v3Raw) as WorkspaceState;
+      if (parsed && parsed.version === 3 && Array.isArray(parsed.resolutions)) {
+        // If resolutions array is empty, create default resolution
+        if (parsed.resolutions.length === 0) {
+          const defaultState = createDefaultAIResolution();
           saveWorkspaceState(defaultState);
           return defaultState;
         }
         return parsed;
+      }
+    }
+
+    // Try v2 migration
+    const v2Raw = localStorage.getItem(KEY_V2);
+    if (v2Raw) {
+      try {
+        const parsed = JSON.parse(v2Raw) as any;
+        if (parsed && parsed.version === 2 && Array.isArray(parsed.programs)) {
+          const v3State = migrateV2ToV3(parsed);
+          saveWorkspaceState(v3State);
+          return v3State;
+        }
+      } catch {
+        // Migration failed, fall through to v1
       }
     }
 
@@ -30,51 +47,46 @@ export function loadWorkspaceState(): WorkspaceState {
         const v1State = JSON.parse(v1Raw) as ResolutionState;
         if (v1State && v1State.version === 1 && Array.isArray(v1State.weeks)) {
           const v2State = migrateV1ToV2(v1State);
-          saveWorkspaceState(v2State);
-          return v2State;
+          const v3State = migrateV2ToV3(v2State);
+          saveWorkspaceState(v3State);
+          return v3State;
         }
       } catch {
         // Migration failed, fall through to default
       }
     }
 
-    // Default empty state - create default AI 10-week program
-    return createDefaultAIProgram();
+    // Default empty state - create default AI 10-week resolution
+    return createDefaultAIResolution();
   } catch {
-    return createDefaultAIProgram();
+    return createDefaultAIResolution();
   }
 }
 
-function createDefaultAIProgram(): WorkspaceState {
+function createDefaultAIResolution(): WorkspaceState {
   const now = new Date().toISOString();
-  const phases = WEEK_DEFINITIONS.map((def, idx) => {
-    const phase = createDefaultPhase(
-      idx + 1,
-      def.title,
-      def.goals,
-      def.deliverables.map(d => ({
-        ...d,
-        completed: false,
-        updatedAt: now,
-      }))
-    );
-    phase.status = derivePhaseStatus(phase);
-    return phase;
-  });
+  const program = createAIDailyBrief10WeekProgram();
+  const resolution = createDefaultResolution(
+    "AI Daily Brief – 10 Week Sprint",
+    "10-week AI learning and shipping challenge",
+    undefined,
+    [program]
+  );
+  resolution.activeProgramId = program.id;
 
-  const program = createDefaultProgram("AI Daily Brief – 10 Week Sprint", phases);
   return {
-    version: 2,
+    version: 3,
     createdAt: now,
     updatedAt: now,
-    programs: [program],
+    resolutions: [resolution],
+    activeResolutionId: resolution.id,
   };
 }
 
 export function saveWorkspaceState(state: WorkspaceState) {
   const next = { ...state, updatedAt: new Date().toISOString() };
-  localStorage.setItem(KEY_V2, JSON.stringify(next));
-  // Keep v1 as fallback (do not delete)
+  localStorage.setItem(KEY_V3, JSON.stringify(next));
+  // Keep v1 and v2 as fallback (do not delete)
 }
 
 // Export/Import helpers
@@ -86,8 +98,20 @@ export function exportWorkspaceState(): string {
 export function importWorkspaceState(json: string): boolean {
   try {
     const parsed = JSON.parse(json) as WorkspaceState;
-    if (parsed && parsed.version === 2 && Array.isArray(parsed.programs)) {
+    // Accept v3 or migrate v2/v1 on import
+    if (parsed && parsed.version === 3 && Array.isArray(parsed.resolutions)) {
       saveWorkspaceState(parsed);
+      return true;
+    } else if (parsed && parsed.version === 2 && Array.isArray((parsed as any).programs)) {
+      // Migrate v2 to v3 on import
+      const v3State = migrateV2ToV3(parsed as any);
+      saveWorkspaceState(v3State);
+      return true;
+    } else if (parsed && parsed.version === 1 && Array.isArray((parsed as any).weeks)) {
+      // Migrate v1 -> v2 -> v3 on import
+      const v2State = migrateV1ToV2(parsed as any);
+      const v3State = migrateV2ToV3(v2State);
+      saveWorkspaceState(v3State);
       return true;
     }
     return false;
