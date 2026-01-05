@@ -85,3 +85,29 @@ export function createDefaultPhase(
   };
 }
 
+/**
+ * Derives phase status from deliverables:
+ * - "done" if all required deliverables are completed
+ * - "in_progress" if any deliverable has completed=true or non-empty value
+ * - "not_started" otherwise
+ */
+export function derivePhaseStatus(phase: Phase): Status {
+  const requiredDeliverables = phase.deliverables.filter(d => d.required);
+  const allRequiredCompleted = requiredDeliverables.length > 0 && 
+    requiredDeliverables.every(d => d.completed);
+  
+  if (allRequiredCompleted) {
+    return "done";
+  }
+  
+  const hasProgress = phase.deliverables.some(d => 
+    d.completed || (d.value && d.value.trim().length > 0)
+  );
+  
+  if (hasProgress) {
+    return "in_progress";
+  }
+  
+  return "not_started";
+}
+

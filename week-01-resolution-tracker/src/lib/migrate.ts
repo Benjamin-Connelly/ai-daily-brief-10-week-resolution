@@ -3,7 +3,7 @@ import { createDefaultWorkspaceState, createDefaultProgram, createDefaultPhase }
 import type { Phase, Deliverable } from "./model";
 
 // Week definitions from the PDF-like structure (deliverables without completed/updatedAt - added during migration)
-const WEEK_DEFINITIONS: Array<{
+export const WEEK_DEFINITIONS: Array<{
   title: string;
   goals: string[];
   deliverables: Array<Omit<Deliverable, "completed" | "updatedAt">>;

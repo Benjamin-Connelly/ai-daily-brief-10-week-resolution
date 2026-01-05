@@ -1,6 +1,6 @@
-import { createDefaultWorkspaceState } from "./model";
+import { createDefaultWorkspaceState, createDefaultProgram, createDefaultPhase, derivePhaseStatus } from "./model";
 import type { WorkspaceState } from "./model";
-import { migrateV1ToV2 } from "./migrate";
+import { migrateV1ToV2, WEEK_DEFINITIONS } from "./migrate";
 import type { ResolutionState } from "./schema";
 
 const KEY_V1 = "ai_resolution_state_v1";
@@ -13,6 +13,12 @@ export function loadWorkspaceState(): WorkspaceState {
     if (v2Raw) {
       const parsed = JSON.parse(v2Raw) as WorkspaceState;
       if (parsed && parsed.version === 2 && Array.isArray(parsed.programs)) {
+        // If programs array is empty, create default program
+        if (parsed.programs.length === 0) {
+          const defaultState = createDefaultAIProgram();
+          saveWorkspaceState(defaultState);
+          return defaultState;
+        }
         return parsed;
       }
     }
@@ -32,11 +38,37 @@ export function loadWorkspaceState(): WorkspaceState {
       }
     }
 
-    // Default empty state
-    return createDefaultWorkspaceState();
+    // Default empty state - create default AI 10-week program
+    return createDefaultAIProgram();
   } catch {
-    return createDefaultWorkspaceState();
+    return createDefaultAIProgram();
   }
+}
+
+function createDefaultAIProgram(): WorkspaceState {
+  const now = new Date().toISOString();
+  const phases = WEEK_DEFINITIONS.map((def, idx) => {
+    const phase = createDefaultPhase(
+      idx + 1,
+      def.title,
+      def.goals,
+      def.deliverables.map(d => ({
+        ...d,
+        completed: false,
+        updatedAt: now,
+      }))
+    );
+    phase.status = derivePhaseStatus(phase);
+    return phase;
+  });
+
+  const program = createDefaultProgram("AI Daily Brief – 10 Week Sprint", phases);
+  return {
+    version: 2,
+    createdAt: now,
+    updatedAt: now,
+    programs: [program],
+  };
 }
 
 export function saveWorkspaceState(state: WorkspaceState) {
