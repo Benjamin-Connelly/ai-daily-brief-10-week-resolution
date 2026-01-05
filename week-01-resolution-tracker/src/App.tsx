@@ -1,22 +1,20 @@
 import { useState, useEffect } from 'react'
 import { loadWorkspaceState, saveWorkspaceState, exportWorkspaceState, importWorkspaceState } from './lib/storage'
-import type { WorkspaceState, Status, Phase, Deliverable } from './lib/model'
+import { derivePhaseStatus } from './lib/model'
+import type { WorkspaceState, Status, Phase } from './lib/model'
 import './App.css'
 
 function PhaseCard({ 
   phase, 
-  onStatusChange, 
   onNotesChange,
   onDeliverableComplete,
   onDeliverableValueChange
 }: { 
   phase: Phase
-  onStatusChange: (phaseId: string, status: Status) => void
   onNotesChange: (phaseId: string, notes: string) => void
   onDeliverableComplete: (phaseId: string, deliverableIndex: number, completed: boolean) => void
   onDeliverableValueChange: (phaseId: string, deliverableIndex: number, value: string) => void
 }) {
-  const statusOptions: Status[] = ["not_started", "in_progress", "done", "paused"]
   const statusLabels: Record<Status, string> = {
     not_started: "Not Started",
     in_progress: "In Progress",
@@ -28,15 +26,7 @@ function PhaseCard({
     <div className="week-card">
       <div className="week-header">
         <h2>{phase.title}</h2>
-        <select 
-          value={phase.status} 
-          onChange={(e) => onStatusChange(phase.id, e.target.value as Status)}
-          className="status-select"
-        >
-          {statusOptions.map(opt => (
-            <option key={opt} value={opt}>{statusLabels[opt]}</option>
-          ))}
-        </select>
+        <div className="status-display">{statusLabels[phase.status]}</div>
       </div>
 
       {phase.goals.length > 0 && (
@@ -112,13 +102,79 @@ function PhaseCard({
   )
 }
 
+function CurrentPhaseFocus({ program }: { program: Phase[] | null }) {
+  if (!program || program.length === 0) return null
+
+  const currentPhase = program
+    .sort((a, b) => a.index - b.index)
+    .find(phase => phase.status !== "done")
+
+  if (!currentPhase) {
+    return (
+      <div className="focus-panel">
+        <h3 className="focus-title">Current Phase Focus</h3>
+        <p className="focus-message">All phases complete! 🎉</p>
+      </div>
+    )
+  }
+
+  const remainingRequired = currentPhase.deliverables.filter(
+    d => d.required && !d.completed
+  )
+
+  return (
+    <div className="focus-panel">
+      <h3 className="focus-title">Current Phase Focus</h3>
+      <div className="focus-content">
+        <h4 className="focus-phase-title">{currentPhase.title}</h4>
+        <p className="focus-count">
+          {remainingRequired.length} required {remainingRequired.length === 1 ? 'deliverable' : 'deliverables'} remaining
+        </p>
+        {remainingRequired.length > 0 && (
+          <ul className="focus-deliverables">
+            {remainingRequired.map((del, idx) => (
+              <li key={idx}>{del.label}</li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </div>
+  )
+}
+
 function App() {
   const [workspace, setWorkspace] = useState<WorkspaceState | null>(null)
   const [selectedProgramId, setSelectedProgramId] = useState<string | null>(null)
 
+  // Helper to apply derived status to all phases in a workspace
+  const applyDerivedStatuses = (ws: WorkspaceState): WorkspaceState => {
+    const now = new Date().toISOString()
+    return {
+      ...ws,
+      programs: ws.programs.map(program => ({
+        ...program,
+        phases: program.phases.map(phase => {
+          const derivedStatus = derivePhaseStatus(phase)
+          const statusChanged = phase.status !== derivedStatus
+          return {
+            ...phase,
+            status: derivedStatus,
+            updatedAt: statusChanged ? now : phase.updatedAt
+          }
+        })
+      })),
+      updatedAt: now
+    }
+  }
+
   useEffect(() => {
     const loaded = loadWorkspaceState()
-    setWorkspace(loaded)
+    const withDerivedStatuses = applyDerivedStatuses(loaded)
+    setWorkspace(withDerivedStatuses)
+    // Save if statuses changed
+    if (JSON.stringify(loaded) !== JSON.stringify(withDerivedStatuses)) {
+      saveWorkspaceState(withDerivedStatuses)
+    }
     // Default to first program if available
     if (loaded.programs.length > 0 && !selectedProgramId) {
       setSelectedProgramId(loaded.programs[0].id)
@@ -127,105 +183,64 @@ function App() {
   }, [])
 
   const selectedProgram = workspace?.programs.find(p => p.id === selectedProgramId) || null
+  const selectedPhases = selectedProgram?.phases || null
 
-  const handleStatusChange = (phaseId: string, status: Status) => {
+  const updatePhaseWithDerivedStatus = (phaseId: string, updater: (phase: Phase) => Phase) => {
     if (!workspace || !selectedProgram) return
+    const now = new Date().toISOString()
     const updated = {
       ...workspace,
       programs: workspace.programs.map(program =>
         program.id === selectedProgramId
           ? {
               ...program,
-              phases: program.phases.map(phase =>
-                phase.id === phaseId
-                  ? { ...phase, status, updatedAt: new Date().toISOString() }
-                  : phase
-              )
+              phases: program.phases.map(phase => {
+                if (phase.id !== phaseId) return phase
+                const updatedPhase = updater(phase)
+                const derivedStatus = derivePhaseStatus(updatedPhase)
+                const statusChanged = phase.status !== derivedStatus
+                return {
+                  ...updatedPhase,
+                  status: derivedStatus,
+                  updatedAt: statusChanged ? now : updatedPhase.updatedAt
+                }
+              })
             }
           : program
-      )
+      ),
+      updatedAt: now
     }
     setWorkspace(updated)
     saveWorkspaceState(updated)
   }
 
   const handleNotesChange = (phaseId: string, notes: string) => {
-    if (!workspace || !selectedProgram) return
-    const updated = {
-      ...workspace,
-      programs: workspace.programs.map(program =>
-        program.id === selectedProgramId
-          ? {
-              ...program,
-              phases: program.phases.map(phase =>
-                phase.id === phaseId
-                  ? { ...phase, notes, updatedAt: new Date().toISOString() }
-                  : phase
-              )
-            }
-          : program
-      )
-    }
-    setWorkspace(updated)
-    saveWorkspaceState(updated)
+    updatePhaseWithDerivedStatus(phaseId, (phase) => ({
+      ...phase,
+      notes
+    }))
   }
 
   const handleDeliverableComplete = (phaseId: string, deliverableIndex: number, completed: boolean) => {
-    if (!workspace || !selectedProgram) return
-    const updated = {
-      ...workspace,
-      programs: workspace.programs.map(program =>
-        program.id === selectedProgramId
-          ? {
-              ...program,
-              phases: program.phases.map(phase =>
-                phase.id === phaseId
-                  ? {
-                      ...phase,
-                      deliverables: phase.deliverables.map((del, idx) =>
-                        idx === deliverableIndex
-                          ? { ...del, completed, updatedAt: new Date().toISOString() }
-                          : del
-                      ),
-                      updatedAt: new Date().toISOString()
-                    }
-                  : phase
-              )
-            }
-          : program
+    updatePhaseWithDerivedStatus(phaseId, (phase) => ({
+      ...phase,
+      deliverables: phase.deliverables.map((del, idx) =>
+        idx === deliverableIndex
+          ? { ...del, completed, updatedAt: new Date().toISOString() }
+          : del
       )
-    }
-    setWorkspace(updated)
-    saveWorkspaceState(updated)
+    }))
   }
 
   const handleDeliverableValueChange = (phaseId: string, deliverableIndex: number, value: string) => {
-    if (!workspace || !selectedProgram) return
-    const updated = {
-      ...workspace,
-      programs: workspace.programs.map(program =>
-        program.id === selectedProgramId
-          ? {
-              ...program,
-              phases: program.phases.map(phase =>
-                phase.id === phaseId
-                  ? {
-                      ...phase,
-                      deliverables: phase.deliverables.map((del, idx) =>
-                        idx === deliverableIndex
-                          ? { ...del, value, updatedAt: new Date().toISOString() }
-                          : del
-                      ),
-                      updatedAt: new Date().toISOString()
-                    }
-                  : phase
-              )
-            }
-          : program
+    updatePhaseWithDerivedStatus(phaseId, (phase) => ({
+      ...phase,
+      deliverables: phase.deliverables.map((del, idx) =>
+        idx === deliverableIndex
+          ? { ...del, value, updatedAt: new Date().toISOString() }
+          : del
       )
-    }
-    setWorkspace(updated)
-    saveWorkspaceState(updated)
+    }))
   }
 
   const handleExport = () => {
@@ -253,7 +268,9 @@ function App() {
         const text = event.target?.result as string
         if (importWorkspaceState(text)) {
           const loaded = loadWorkspaceState()
-          setWorkspace(loaded)
+          const withDerivedStatuses = applyDerivedStatuses(loaded)
+          setWorkspace(withDerivedStatuses)
+          saveWorkspaceState(withDerivedStatuses)
           if (loaded.programs.length > 0) {
             setSelectedProgramId(loaded.programs[0].id)
           }
@@ -324,20 +341,23 @@ function App() {
         </div>
       </header>
       <main className="weeks-container">
-        {selectedProgram ? (
-          selectedProgram.phases
-            .sort((a, b) => a.index - b.index)
-            .map(phase => (
-              <PhaseCard
-                key={phase.id}
-                phase={phase}
-                onStatusChange={handleStatusChange}
-                onNotesChange={handleNotesChange}
-                onDeliverableComplete={handleDeliverableComplete}
-                onDeliverableValueChange={handleDeliverableValueChange}
-              />
-            ))
-        ) : (
+        {selectedProgram && (
+          <>
+            <CurrentPhaseFocus program={selectedPhases} />
+            {selectedProgram.phases
+              .sort((a, b) => a.index - b.index)
+              .map(phase => (
+                <PhaseCard
+                  key={phase.id}
+                  phase={phase}
+                  onNotesChange={handleNotesChange}
+                  onDeliverableComplete={handleDeliverableComplete}
+                  onDeliverableValueChange={handleDeliverableValueChange}
+                />
+              ))}
+          </>
+        )}
+        {!selectedProgram && (
           <div style={{ textAlign: 'center', color: '#666', padding: '2rem' }}>
             No program selected. Create a program to get started.
           </div>

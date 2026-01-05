@@ -76,6 +76,16 @@
   box-shadow: 0 0 0 2px rgba(74, 144, 226, 0.1);
 }
 
+.status-display {
+  padding: 0.5rem 1rem;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  background: #f5f5f5;
+  font-size: 0.95rem;
+  color: #666;
+  font-weight: 500;
+}
+
 .section-title {
   font-size: 1rem;
   font-weight: 600;
@@ -243,6 +253,54 @@
   min-height: 100vh;
   font-size: 1.2rem;
   color: #666;
+}
+
+.focus-panel {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border-radius: 8px;
+  padding: 1.5rem;
+  margin-bottom: 2rem;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.focus-title {
+  margin: 0 0 1rem 0;
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+
+.focus-message {
+  margin: 0;
+  font-size: 1rem;
+  opacity: 0.95;
+}
+
+.focus-content {
+  margin-top: 0.75rem;
+}
+
+.focus-phase-title {
+  margin: 0 0 0.5rem 0;
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.focus-count {
+  margin: 0 0 0.75rem 0;
+  font-size: 0.95rem;
+  opacity: 0.9;
+}
+
+.focus-deliverables {
+  margin: 0;
+  padding-left: 1.5rem;
+  list-style-type: disc;
+  opacity: 0.95;
+}
+
+.focus-deliverables li {
+  margin-bottom: 0.25rem;
 }
 
 @media (max-width: 768px) {
