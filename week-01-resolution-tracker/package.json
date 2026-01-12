@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "build:week-01": "BASE_PATH=/week-01/ vite build && mkdir -p dist/week-01 && cp -r dist/* dist/week-01/ 2>/dev/null || (cd dist && find . -maxdepth 1 ! -name week-01 ! -name . -exec mv {} week-01/ \\;)",
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
     "preview": "vite preview"
