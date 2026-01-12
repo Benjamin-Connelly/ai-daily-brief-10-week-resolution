@@ -3,6 +3,7 @@ import { loadWorkspaceState, saveWorkspaceState, exportWorkspaceState, importWor
 import { derivePhaseStatus, deriveProgramProgress, deriveResolutionProgress, deriveDeliverableStatus } from './lib/model'
 import type { WorkspaceState, Status, Phase, Resolution, Program, Priority, Deliverable } from './lib/model'
 import { createBlankResolution, createAIDailyBrief10WeekProgram, createBlankProgram } from './lib/templates'
+import { isDemoMode, getNormalUrl, getDemoUrl } from './lib/demo'
 import './App.css'
 
 type Scope = 'portfolio' | 'project' | 'sprint'
@@ -2282,7 +2283,7 @@ function App() {
     const loaded = loadWorkspaceState()
     const withDerivedStatuses = applyDerivedStatuses(loaded)
     setWorkspace(withDerivedStatuses)
-    // Save if statuses changed
+    // Save if statuses changed (but not in demo mode)
     if (JSON.stringify(loaded) !== JSON.stringify(withDerivedStatuses)) {
       saveWorkspaceState(withDerivedStatuses)
     }
@@ -2294,7 +2295,7 @@ function App() {
       setSelectedResolutionId(loaded.activeResolutionId)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [isDemoMode()]) // Reload when demo mode changes
 
   const updateWorkspace = (ws: WorkspaceState) => {
     // Force React to recognize state change by creating new object reference
@@ -2457,11 +2458,56 @@ function App() {
   const activeProgram = selectedProject?.programs.find(p => p.id === selectedProject?.activeProgramId) || selectedProject?.programs[0]
   const selectedPhase = activeProgram?.phases.find(p => p.id === selectedSprintId) || null
 
+  const demoMode = isDemoMode()
+
   return (
     <div className="app">
+      {demoMode && (
+        <div className="demo-banner" style={{
+          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+          color: 'white',
+          padding: '0.75rem 1rem',
+          textAlign: 'center',
+          fontSize: '0.9rem',
+          fontWeight: 500,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: '1rem',
+          boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+        }}>
+          <span>🎬 <strong>DEMO MODE</strong> - Showing sample data. Changes won't be saved.</span>
+          <a 
+            href={getNormalUrl()} 
+            style={{
+              color: 'white',
+              textDecoration: 'underline',
+              fontWeight: 600,
+              cursor: 'pointer'
+            }}
+          >
+            Exit Demo
+          </a>
+        </div>
+      )}
       <header className="app-header">
         <h1 className="app-title">Resolution Tracker</h1>
         <p className="app-subtitle">Track your progress through resolutions, programs, and phases</p>
+        {!demoMode && (
+          <div style={{ marginTop: '0.5rem' }}>
+            <a 
+              href={getDemoUrl()}
+              style={{
+                color: '#667eea',
+                textDecoration: 'none',
+                fontSize: '0.85rem',
+                fontWeight: 500
+              }}
+            >
+              🎬 View Demo Mode
+            </a>
+          </div>
+        )}
       </header>
       <main className="main-content">
         {scope === 'portfolio' && (

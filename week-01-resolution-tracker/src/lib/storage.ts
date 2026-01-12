@@ -3,12 +3,18 @@ import type { WorkspaceState } from "./model";
 import { migrateV1ToV2, migrateV2ToV3, WEEK_DEFINITIONS } from "./migrate";
 import type { ResolutionState } from "./schema";
 import { createAIDailyBrief10WeekProgram } from "./templates";
+import { isDemoMode, createDemoWorkspaceState } from "./demo";
 
 const KEY_V1 = "ai_resolution_state_v1";
 const KEY_V2 = "ai_workspace_state_v2";
 const KEY_V3 = "ai_workspace_state_v3";
 
 export function loadWorkspaceState(): WorkspaceState {
+  // In demo mode, return demo data instead of localStorage
+  if (isDemoMode()) {
+    return createDemoWorkspaceState();
+  }
+
   try {
     // Try v3 first
     const v3Raw = localStorage.getItem(KEY_V3);
@@ -84,6 +90,10 @@ function createDefaultAIResolution(): WorkspaceState {
 }
 
 export function saveWorkspaceState(state: WorkspaceState) {
+  // Don't save to localStorage in demo mode
+  if (isDemoMode()) {
+    return;
+  }
   const next = { ...state, updatedAt: new Date().toISOString() };
   localStorage.setItem(KEY_V3, JSON.stringify(next));
   // Keep v1 and v2 as fallback (do not delete)
