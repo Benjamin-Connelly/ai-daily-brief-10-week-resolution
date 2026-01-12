@@ -21,9 +21,7 @@ This project is deployed to `ai-resolution.benjaminconnelly.com/week-01/`
    - **Build command**: `cd week-01-resolution-tracker && npm install && npm run build`
    - **Build output directory**: `week-01-resolution-tracker/dist`
    - **Root directory**: `/` (monorepo root)
-5. **Important**: Copy `functions/` folder to build output
-   - Add to build command: `&& cp -r functions week-01-resolution-tracker/dist/`
-   - Or manually copy `functions/` to `week-01-resolution-tracker/dist/functions/`
+   - **Note**: The build script automatically copies `functions/` to `dist/` (see package.json)
 6. Add custom domain:
    - Domain: `ai-resolution.benjaminconnelly.com`
 7. Deploy!
