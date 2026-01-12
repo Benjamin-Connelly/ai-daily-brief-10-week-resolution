@@ -21,7 +21,7 @@ This project is deployed to `ai-resolution.benjaminconnelly.com/week-01/`
    - **Build command**: `cd week-01-resolution-tracker && npm install && npm run build`
    - **Build output directory**: `week-01-resolution-tracker/dist`
    - **Root directory**: `/` (monorepo root)
-   - **Note**: The build script automatically copies `functions/` to `dist/` (see package.json)
+   - **Note**: The build script automatically copies `functions/` and `assets/` to `dist/` (see package.json)
 6. Add custom domain:
    - Domain: `ai-resolution.benjaminconnelly.com`
 7. Deploy!
@@ -41,8 +41,9 @@ cd week-01-resolution-tracker
 # Build
 npm run build
 
-# Copy functions to dist
+# Copy functions and shared assets to dist
 cp -r ../functions dist/
+cp -r ../assets dist/
 
 # Deploy
 wrangler pages deploy dist --project-name=week-01-resolution-tracker
