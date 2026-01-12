@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { loadWorkspaceState, saveWorkspaceState, exportWorkspaceState, importWorkspaceState } from './lib/storage'
-import { derivePhaseStatus, deriveProgramProgress, deriveResolutionProgress, deriveDeliverableStatus } from './lib/model'
+import { derivePhaseStatus, deriveProgramProgress, deriveResolutionProgress, deriveDeliverableStatus, createDefaultResolution } from './lib/model'
 import type { WorkspaceState, Status, Phase, Resolution, Program, Priority, Deliverable } from './lib/model'
 import { createBlankResolution, createAIDailyBrief10WeekProgram, createBlankProgram } from './lib/templates'
 import { isDemoMode, getNormalUrl, getDemoUrl } from './lib/demo'
@@ -2279,23 +2279,90 @@ function App() {
     }
   }
 
+  // Helper to create default state (same as storage.ts)
+  const createDefaultAIResolution = (): WorkspaceState => {
+    const now = new Date().toISOString()
+    const program = createAIDailyBrief10WeekProgram()
+    const resolution = createDefaultResolution(
+      "AI Daily Brief – 10 Week Sprint",
+      "10-week AI learning and shipping challenge",
+      undefined,
+      undefined,
+      undefined,
+      [program]
+    )
+    resolution.activeProgramId = program.id
+    return {
+      version: 3,
+      createdAt: now,
+      updatedAt: now,
+      resolutions: [resolution],
+      activeResolutionId: resolution.id,
+    }
+  }
+
   useEffect(() => {
-    const loaded = loadWorkspaceState()
-    const withDerivedStatuses = applyDerivedStatuses(loaded)
-    setWorkspace(withDerivedStatuses)
-    // Save if statuses changed (but not in demo mode)
-    if (JSON.stringify(loaded) !== JSON.stringify(withDerivedStatuses)) {
-      saveWorkspaceState(withDerivedStatuses)
+    try {
+      const loaded = loadWorkspaceState()
+      if (!loaded || !loaded.resolutions || !Array.isArray(loaded.resolutions)) {
+        console.error('Failed to load workspace state, creating default')
+        const defaultState = createDefaultAIResolution()
+        setWorkspace(defaultState)
+        saveWorkspaceState(defaultState)
+        setScope('portfolio')
+        return
+      }
+      const withDerivedStatuses = applyDerivedStatuses(loaded)
+      setWorkspace(withDerivedStatuses)
+      // Save if statuses changed (but not in demo mode)
+      if (JSON.stringify(loaded) !== JSON.stringify(withDerivedStatuses)) {
+        saveWorkspaceState(withDerivedStatuses)
+      }
+      // Always start on portfolio scope (default home)
+      setScope('portfolio')
+      // Preserve IDs if available, but don't auto-navigate
+      if (loaded.activeResolutionId) {
+        setSelectedProjectId(loaded.activeResolutionId)
+        setSelectedResolutionId(loaded.activeResolutionId)
+      }
+    } catch (error) {
+      console.error('Error loading workspace state:', error)
+      // Fallback to default state on error
+      try {
+        const defaultState = createDefaultAIResolution()
+        setWorkspace(defaultState)
+        saveWorkspaceState(defaultState)
+        setScope('portfolio')
+      } catch (fallbackError) {
+        console.error('Error creating default state:', fallbackError)
+        // Last resort: set empty state to prevent infinite loading
+        setWorkspace({
+          version: 3,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          resolutions: [],
+        })
+      }
     }
-    // Always start on portfolio scope (default home)
-    setScope('portfolio')
-    // Preserve IDs if available, but don't auto-navigate
-    if (loaded.activeResolutionId) {
-      setSelectedProjectId(loaded.activeResolutionId)
-      setSelectedResolutionId(loaded.activeResolutionId)
+  }, []) // Load once on mount, demo mode check happens inside loadWorkspaceState
+
+  // Separate effect to reload when demo mode changes (via URL parameter)
+  useEffect(() => {
+    const handleLocationChange = () => {
+      try {
+        const loaded = loadWorkspaceState()
+        if (loaded && loaded.resolutions && Array.isArray(loaded.resolutions)) {
+          const withDerivedStatuses = applyDerivedStatuses(loaded)
+          setWorkspace(withDerivedStatuses)
+        }
+      } catch (error) {
+        console.error('Error reloading on demo mode change:', error)
+      }
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isDemoMode()]) // Reload when demo mode changes
+    // Reload when URL changes (demo mode toggle)
+    window.addEventListener('popstate', handleLocationChange)
+    return () => window.removeEventListener('popstate', handleLocationChange)
+  }, [])
 
   const updateWorkspace = (ws: WorkspaceState) => {
     // Force React to recognize state change by creating new object reference
