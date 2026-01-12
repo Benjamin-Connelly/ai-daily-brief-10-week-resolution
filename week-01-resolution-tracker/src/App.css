@@ -5,8 +5,14 @@
 }
 
 .app-header {
-  text-align: center;
   margin-bottom: 32px;
+}
+
+.app-header-top {
+  display: grid;
+  grid-template-columns: 72px 1fr 160px;
+  align-items: center;
+  gap: 1rem;
 }
 
 .app-title {
@@ -20,6 +26,93 @@
   color: #666;
   font-size: 1.25rem;
   margin: 0;
+}
+
+.app-home-logo {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 64px;
+  height: 64px;
+  border-radius: 12px;
+  background: white;
+  border: 1px solid #e5e5e5;
+  overflow: hidden;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+  text-decoration: none;
+}
+
+.app-home-logo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.app-header-titles {
+  text-align: center;
+}
+
+.app-header-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.app-demo-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.5rem 0.75rem;
+  border-radius: 8px;
+  border: 1px solid #ddd;
+  background: white;
+  color: #667eea;
+  text-decoration: none;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.app-demo-link:hover {
+  background: #f5f7ff;
+}
+
+.app-breadcrumbs {
+  margin-top: 0.75rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  color: #666;
+  font-size: 0.9rem;
+}
+
+.app-breadcrumbs .sep {
+  opacity: 0.6;
+}
+
+.app-breadcrumbs .crumb {
+  color: #4a90e2;
+  text-decoration: none;
+  font-weight: 600;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+}
+
+.app-breadcrumbs .crumb:hover {
+  text-decoration: underline;
+}
+
+.app-breadcrumbs .crumb-current {
+  color: #111;
+  font-weight: 700;
+  cursor: default;
+}
+
+.app-breadcrumbs .crumb-current:hover {
+  text-decoration: none;
 }
 
 .main-content {
@@ -1066,6 +1159,16 @@
   font-size: 0.85rem;
   font-weight: 500;
   transition: all 0.2s;
+}
+
+.status-change-btn.btn-sprints-toggle {
+  background: #4a90e2;
+  color: #fff;
+  border-color: #357abd;
+}
+
+.status-change-btn.btn-sprints-toggle:hover {
+  background: #357abd;
 }
 
 .btn-mark-complete {

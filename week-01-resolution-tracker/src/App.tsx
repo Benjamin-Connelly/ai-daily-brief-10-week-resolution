@@ -1523,13 +1523,13 @@ function PortfolioView({
               e.stopPropagation()
               onEditProject(resolution.id)
             }}
-            style={{ backgroundColor: '#666' }}
+            style={{ backgroundColor: '#666', color: '#fff', borderColor: '#666' }}
           >
             Edit
           </button>
           {activeProgram && (
             <button
-              className="status-change-btn"
+              className="status-change-btn btn-sprints-toggle"
               onClick={(e) => {
                 e.stopPropagation()
                 setExpandedProjectIds(prev => {
@@ -1539,7 +1539,6 @@ function PortfolioView({
                   return next
                 })
               }}
-              style={{ backgroundColor: '#0f172a' }}
               aria-expanded={sprintsExpanded}
             >
               {sprintsExpanded ? 'Hide Sprints' : 'View Sprints'}
@@ -2822,6 +2821,17 @@ function App() {
       ? (selectedProject?.title || 'Project')
       : `${selectedPhase?.title || 'Sprint'} • ${selectedProject?.title || 'Project'}`
 
+  const navigateToPortfolio = () => {
+    setScope('portfolio')
+    setSelectedSprintId(null)
+  }
+
+  const navigateToProject = () => {
+    if (!selectedProjectId) return
+    setScope('project')
+    setSelectedSprintId(null)
+  }
+
   return (
     <div className="app">
       {demoMode && (
@@ -2853,23 +2863,56 @@ function App() {
         </div>
       )}
       <header className="app-header">
-        <h1 className="app-title">10 Week AI Resolution Project</h1>
-        <p className="app-subtitle">{headerSubtitle}</p>
-        {!demoMode && (
-          <div style={{ marginTop: '0.5rem' }}>
-            <a 
-              href={getDemoUrl()}
-              style={{
-                color: '#667eea',
-                textDecoration: 'none',
-                fontSize: '0.85rem',
-                fontWeight: 500
-              }}
-            >
-              🎬 View Demo Mode
-            </a>
+        <div className="app-header-top">
+          <a
+            className="app-home-logo"
+            href="/"
+            title="Home"
+            aria-label="Home"
+          >
+            <img
+              src="/assets/images/shrike_main_logo.jpeg"
+              alt="AI Resolution home"
+            />
+          </a>
+
+          <div className="app-header-titles">
+            <h1 className="app-title">10 Week AI Resolution Project</h1>
+            <p className="app-subtitle">{headerSubtitle}</p>
           </div>
-        )}
+
+          <div className="app-header-actions">
+            {!demoMode && (
+              <a className="app-demo-link" href={getDemoUrl()}>
+                View Demo Mode
+              </a>
+            )}
+          </div>
+        </div>
+
+        <nav className="app-breadcrumbs" aria-label="Breadcrumb">
+          <a href="/" className="crumb">
+            Home
+          </a>
+          <span className="sep">/</span>
+          <button type="button" className="crumb crumb-button" onClick={navigateToPortfolio}>
+            Projects
+          </button>
+          {selectedProject && (
+            <>
+              <span className="sep">/</span>
+              <button type="button" className="crumb crumb-button" onClick={navigateToProject}>
+                {selectedProject.title}
+              </button>
+            </>
+          )}
+          {scope === "sprint" && selectedPhase && (
+            <>
+              <span className="sep">/</span>
+              <span className="crumb crumb-current">{selectedPhase.title}</span>
+            </>
+          )}
+        </nav>
       </header>
       <main className="main-content">
         {scope === 'portfolio' && (
