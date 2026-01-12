@@ -170,9 +170,8 @@ export default function LandingPage() {
                 height: 'auto',
                 display: 'block',
                 objectFit: 'contain',
-                imageRendering: 'crisp-edges',
-                WebkitImageRendering: 'crisp-edges',
-                msInterpolationMode: 'nearest-neighbor'
+                imageRendering: '-webkit-optimize-contrast',
+                imageRendering: 'optimize-contrast'
               }}
             />
           </div>
