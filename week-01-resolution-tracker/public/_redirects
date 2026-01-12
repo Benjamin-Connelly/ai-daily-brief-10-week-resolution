@@ -1,4 +1,5 @@
 # Cloudflare Pages redirects for SPA routing
-# All routes should fallback to index.html for React Router
+# Root serves landing page, /week-01/* serves the app
 
-/*  /index.html  200
+/  /index.html  200
+/week-01/*  /index.html  200

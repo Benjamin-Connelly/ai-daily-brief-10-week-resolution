@@ -14,19 +14,19 @@ This project is deployed to `ai-resolution.benjaminconnelly.com/week-01/`
 #### Option 1: Cloudflare Pages Dashboard
 
 1. Go to Cloudflare Dashboard → Pages
-2. Create a new project
+2. Create a new project (or use existing)
 3. Connect to GitHub repository: `Benjamin-Connelly/ai-daily-brief-10-week-resolution`
 4. Configure build settings:
    - **Framework preset**: Vite (or None)
    - **Build command**: `cd week-01-resolution-tracker && npm install && npm run build`
    - **Build output directory**: `week-01-resolution-tracker/dist`
    - **Root directory**: `/` (monorepo root)
-   - **Deploy command**: `npx wrangler pages deploy week-01-resolution-tracker/dist --project-name=week-01-resolution-tracker`
-   - **Non-production branch deploy command**: `npx wrangler pages deploy week-01-resolution-tracker/dist --project-name=week-01-resolution-tracker`
-5. Add custom domain:
+5. **Important**: Copy `functions/` folder to build output
+   - Add to build command: `&& cp -r functions week-01-resolution-tracker/dist/`
+   - Or manually copy `functions/` to `week-01-resolution-tracker/dist/functions/`
+6. Add custom domain:
    - Domain: `ai-resolution.benjaminconnelly.com`
-   - Path prefix: `/week-01` (configure in Cloudflare Pages custom domain settings)
-6. Deploy!
+7. Deploy!
 
 #### Option 2: Wrangler CLI
 
@@ -43,15 +43,27 @@ cd week-01-resolution-tracker
 # Build
 npm run build
 
+# Copy functions to dist
+cp -r ../functions dist/
+
 # Deploy
 wrangler pages deploy dist --project-name=week-01-resolution-tracker
 ```
 
 ### Build Configuration
 
-- **Base path**: `/week-01/` (configured in `vite.config.ts`)
+- **Base path**: `/` (configured in `vite.config.ts`)
 - **Output**: `dist/` directory
 - **SPA routing**: Handled by `_redirects` file
+- **Path routing**: Handled by Cloudflare Pages Functions in `functions/week-01/[[path]].js`
+
+### How It Works
+
+1. User visits `ai-resolution.benjaminconnelly.com/week-01/`
+2. Cloudflare Pages Function (`functions/week-01/[[path]].js`) intercepts the request
+3. Function rewrites `/week-01/*` to `/*` to serve files from root
+4. React app loads with base path `/` (assets load correctly)
+5. SPA routing handled by `_redirects` file
 
 ### URL Structure
 
@@ -66,7 +78,7 @@ npm run build
 npm run preview
 ```
 
-Visit: `http://localhost:4173/week-01/`
+Visit: `http://localhost:4173/` (Functions don't work locally, test routing separately)
 
 ### Demo Mode
 
@@ -80,10 +92,13 @@ This shows realistic sample data without affecting localStorage.
 ### Troubleshooting
 
 **Issue**: Routes return 404
-- **Solution**: Ensure `_redirects` file is in the build output
+- **Solution**: Ensure `_redirects` file is in the build output (`dist/`)
+- **Solution**: Ensure `functions/` folder is copied to `dist/functions/`
 
 **Issue**: Assets not loading
-- **Solution**: Verify `base` path in `vite.config.ts` matches deployment path
+- **Solution**: Base path is `/`, so assets should load from root
+- **Solution**: Check browser console for 404 errors on asset paths
 
-**Issue**: React Router not working
-- **Solution**: Check that `_redirects` file includes SPA fallback rule
+**Issue**: `/week-01/` shows blank page
+- **Solution**: Verify Functions folder is in build output
+- **Solution**: Check Cloudflare Pages Functions logs in dashboard
