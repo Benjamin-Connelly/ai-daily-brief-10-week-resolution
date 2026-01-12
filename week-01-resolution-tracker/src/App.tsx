@@ -442,6 +442,132 @@ function CreateResolutionModal({
   )
 }
 
+function EditResolutionModal({
+  isOpen,
+  resolution,
+  onClose,
+  onSave
+}: {
+  isOpen: boolean
+  resolution: Resolution | null
+  onClose: () => void
+  onSave: (resolutionId: string, updates: {
+    title: string
+    description?: string
+    category?: string
+    priority?: Priority
+    imageUrl?: string
+  }) => void
+}) {
+  const [title, setTitle] = useState("")
+  const [description, setDescription] = useState("")
+  const [category, setCategory] = useState("")
+  const [priority, setPriority] = useState<Priority>("medium")
+  const [imageUrl, setImageUrl] = useState("")
+
+  useEffect(() => {
+    if (!isOpen || !resolution) return
+    setTitle(resolution.title || "")
+    setDescription(resolution.description || "")
+    setCategory(resolution.category || "")
+    setPriority(resolution.priority || "medium")
+    setImageUrl(resolution.imageUrl || "")
+  }, [isOpen, resolution?.id])
+
+  if (!isOpen || !resolution) return null
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    const trimmedTitle = title.trim()
+    if (!trimmedTitle) return
+
+    onSave(resolution.id, {
+      title: trimmedTitle,
+      description: description.trim() || undefined,
+      category: category.trim() || undefined,
+      priority,
+      imageUrl: imageUrl.trim() || undefined,
+    })
+    onClose()
+  }
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-header">
+          <h2>Edit Project</h2>
+          <button className="modal-close" onClick={onClose}>×</button>
+        </div>
+        <form onSubmit={handleSubmit}>
+          <div className="form-group">
+            <label htmlFor="edit-title">Project Name *</label>
+            <input
+              id="edit-title"
+              type="text"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              required
+            />
+          </div>
+          <div className="form-group">
+            <label htmlFor="edit-description">Description</label>
+            <textarea
+              id="edit-description"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              rows={4}
+              placeholder="Describe your goal and what success looks like..."
+            />
+          </div>
+          <div className="form-group">
+            <label htmlFor="edit-imageUrl">Image URL (optional)</label>
+            <input
+              id="edit-imageUrl"
+              type="url"
+              value={imageUrl}
+              onChange={(e) => setImageUrl(e.target.value)}
+              placeholder="https://..."
+            />
+          </div>
+          <div className="form-row">
+            <div className="form-group">
+              <label htmlFor="edit-priority">Priority</label>
+              <select
+                id="edit-priority"
+                value={priority}
+                onChange={(e) => setPriority(e.target.value as Priority)}
+              >
+                <option value="high">High</option>
+                <option value="medium">Medium</option>
+                <option value="low">Low</option>
+              </select>
+            </div>
+            <div className="form-group">
+              <label htmlFor="edit-category">Category</label>
+              <select
+                id="edit-category"
+                value={category}
+                onChange={(e) => setCategory(e.target.value)}
+              >
+                <option value="">Select category...</option>
+                <option value="Health & Fitness">🏃 Health & Fitness</option>
+                <option value="Learning">📚 Learning</option>
+                <option value="Career">💼 Career</option>
+                <option value="Financial">💰 Financial</option>
+                <option value="Personal Growth">⭐ Personal Growth</option>
+              </select>
+            </div>
+          </div>
+          <div className="form-actions">
+            <button type="button" onClick={onClose} className="btn-cancel">Cancel</button>
+            <button type="submit" className="btn-create">Save Changes</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
 // Helper to get icon for resolution based on category
 function getResolutionIcon(category?: string): string {
   const iconMap: Record<string, string> = {
@@ -1271,6 +1397,7 @@ function PortfolioView({
   onSelectProject,
   onSelectSprint,
   onCreateProject,
+  onEditProject,
   onStatusChange,
   onExport,
   onImport
@@ -1279,12 +1406,13 @@ function PortfolioView({
   onSelectProject: (id: string) => void
   onSelectSprint: (projectId: string, sprintId: string) => void
   onCreateProject: (title: string, description?: string, category?: string, priority?: Priority, imageUrl?: string, status?: Status, useTemplate?: boolean) => void
+  onEditProject: (id: string) => void
   onStatusChange: (resolutionId: string, newStatus: Status) => void
   onExport: () => void
   onImport: () => void
 }) {
   const [showCreateModal, setShowCreateModal] = useState(false)
-  const [explodeSprints, setExplodeSprints] = useState(false)
+  const [expandedProjectIds, setExpandedProjectIds] = useState<Set<string>>(new Set())
   const [filterCategory, setFilterCategory] = useState<string>('all')
   const [filterPriority, setFilterPriority] = useState<string>('all')
   const [sortBy, setSortBy] = useState<string>('newest')
@@ -1362,6 +1490,7 @@ function PortfolioView({
     const icon = getResolutionIcon(resolution.category)
     const priority = resolution.priority || 'medium'
     const activeProgram = resolution.programs.find(p => p.id === resolution.activeProgramId) || resolution.programs[0]
+    const sprintsExpanded = expandedProjectIds.has(resolution.id)
 
     return (
       <div key={`${resolution.id}-${status}`} className="kanban-card">
@@ -1378,49 +1507,6 @@ function PortfolioView({
             <span className="category-tag">{resolution.category}</span>
           )}
         </div>
-        {explodeSprints && activeProgram && (
-          <div style={{ marginTop: '0.75rem', paddingTop: '0.75rem', borderTop: '1px solid #e0e0e0' }}>
-            {activeProgram.phases.sort((a, b) => a.index - b.index).map(phase => {
-              const requiredRemaining = phase.deliverables.filter(d => d.required && !d.completed).length
-              const { status: phaseStatus } = derivePhaseStatus(phase)
-              return (
-                <div
-                  key={phase.id}
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    onSelectSprint(resolution.id, phase.id)
-                  }}
-                  style={{
-                    padding: '0.5rem',
-                    marginBottom: '0.25rem',
-                    cursor: 'pointer',
-                    borderRadius: '4px',
-                    backgroundColor: '#f5f5f5',
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center'
-                  }}
-                >
-                  <div>
-                    <div style={{ fontWeight: 500 }}>{phase.title}</div>
-                    <div style={{ fontSize: '0.875rem', color: '#666' }}>
-                      {requiredRemaining} required remaining
-                    </div>
-                  </div>
-                  <span style={{
-                    padding: '0.25rem 0.5rem',
-                    borderRadius: '4px',
-                    fontSize: '0.75rem',
-                    backgroundColor: phaseStatus === 'done' ? '#4caf50' : phaseStatus === 'in_progress' ? '#2196f3' : '#ccc',
-                    color: 'white'
-                  }}>
-                    {statusLabels[phaseStatus]}
-                  </span>
-                </div>
-              )
-            })}
-          </div>
-        )}
         <div className="kanban-card-actions">
           <button
             className="status-change-btn"
@@ -1431,7 +1517,86 @@ function PortfolioView({
           >
             Open Project
           </button>
+          <button
+            className="status-change-btn"
+            onClick={(e) => {
+              e.stopPropagation()
+              onEditProject(resolution.id)
+            }}
+            style={{ backgroundColor: '#666' }}
+          >
+            Edit
+          </button>
+          {activeProgram && (
+            <button
+              className="status-change-btn"
+              onClick={(e) => {
+                e.stopPropagation()
+                setExpandedProjectIds(prev => {
+                  const next = new Set(prev)
+                  if (next.has(resolution.id)) next.delete(resolution.id)
+                  else next.add(resolution.id)
+                  return next
+                })
+              }}
+              style={{ backgroundColor: '#0f172a' }}
+              aria-expanded={sprintsExpanded}
+            >
+              {sprintsExpanded ? 'Hide Sprints' : 'View Sprints'}
+            </button>
+          )}
         </div>
+        {sprintsExpanded && activeProgram && (
+          <div style={{ marginTop: '0.75rem', paddingTop: '0.75rem', borderTop: '1px solid #e0e0e0' }}>
+            {activeProgram.phases
+              .slice()
+              .sort((a, b) => a.index - b.index)
+              .map(phase => {
+                const requiredRemaining = phase.deliverables.filter(d => d.required && !d.completed).length
+                const { status: phaseStatus } = derivePhaseStatus(phase)
+                return (
+                  <div
+                    key={phase.id}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      onSelectSprint(resolution.id, phase.id)
+                    }}
+                    style={{
+                      padding: '0.5rem',
+                      marginBottom: '0.25rem',
+                      cursor: 'pointer',
+                      borderRadius: '4px',
+                      backgroundColor: '#f5f5f5',
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center'
+                    }}
+                    title="Open sprint"
+                  >
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {phase.title}
+                      </div>
+                      <div style={{ fontSize: '0.875rem', color: '#666' }}>
+                        {requiredRemaining} required remaining
+                      </div>
+                    </div>
+                    <span style={{
+                      padding: '0.25rem 0.5rem',
+                      borderRadius: '4px',
+                      fontSize: '0.75rem',
+                      backgroundColor: phaseStatus === 'done' ? '#4caf50' : phaseStatus === 'in_progress' ? '#2196f3' : '#ccc',
+                      color: 'white',
+                      flexShrink: 0,
+                      marginLeft: '0.5rem'
+                    }}>
+                      {statusLabels[phaseStatus]}
+                    </span>
+                  </div>
+                )
+              })}
+          </div>
+        )}
       </div>
     )
   }
@@ -1480,17 +1645,6 @@ function PortfolioView({
         </div>
 
         <div className="filter-bar">
-          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-            <label>
-              <input
-                type="checkbox"
-                checked={explodeSprints}
-                onChange={(e) => setExplodeSprints(e.target.checked)}
-                style={{ marginRight: '0.5rem' }}
-              />
-              Explode sprints
-            </label>
-          </div>
           <div style={{ display: 'flex', gap: '0.5rem' }}>
             <select className="filter-select" value={filterCategory} onChange={(e) => setFilterCategory(e.target.value)}>
               <option value="all">All Categories</option>
@@ -1577,11 +1731,13 @@ function ProjectView({
   resolution,
   onBack,
   onSelectSprint,
+  onEditProject,
   onUpdateWorkspace
 }: {
   resolution: Resolution
   onBack: () => void
   onSelectSprint: (sprintId: string) => void
+  onEditProject: (id: string) => void
   onUpdateWorkspace: (ws: WorkspaceState) => void
 }) {
   const activeProgram = resolution.programs.find(p => p.id === resolution.activeProgramId) || resolution.programs[0]
@@ -1601,10 +1757,21 @@ function ProjectView({
       </button>
       
       <div style={{ marginBottom: '2rem' }}>
-        <h1 style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>{resolution.title}</h1>
-        {resolution.description && (
-          <p style={{ color: '#666', marginBottom: '1rem' }}>{resolution.description}</p>
-        )}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem' }}>
+          <div style={{ flex: 1 }}>
+            <h1 style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>{resolution.title}</h1>
+            {resolution.description && (
+              <p style={{ color: '#666', marginBottom: '1rem' }}>{resolution.description}</p>
+            )}
+          </div>
+          <button
+            onClick={() => onEditProject(resolution.id)}
+            className="btn-new-resolution"
+            style={{ backgroundColor: '#666', height: 'fit-content' }}
+          >
+            Edit Project
+          </button>
+        </div>
         <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
           <div style={{ flex: 1 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
@@ -1947,6 +2114,22 @@ function SprintView({
     const isOnHold = deliverable.onHold === true
     const hasEvidence = deliverable.value && deliverable.value.trim().length > 0
     const isExpanded = expandedDeliverableId === taskId || hasEvidence
+    const urlValue = deliverable.kind === "link" ? (deliverable.value || "").trim() : ""
+    const linkPlaceholder = (() => {
+      const label = (deliverable.label || "").toLowerCase()
+      if (label.includes("deployment")) return "Paste deployment URL (e.g., https://ai-resolution.benjaminconnelly.com/week-01/)"
+      if (label.includes("pwa")) return "Paste PWA URL (e.g., https://ai-resolution.benjaminconnelly.com/week-01/)"
+      return "Paste URL (optional)"
+    })()
+    const canOpenUrl = (() => {
+      if (!urlValue) return false
+      try {
+        const parsed = new URL(urlValue)
+        return parsed.protocol === "http:" || parsed.protocol === "https:"
+      } catch {
+        return false
+      }
+    })()
     
     return (
       <div
@@ -1995,14 +2178,39 @@ function SprintView({
         {(isExpanded || hasEvidence) && (
           <div style={{ marginTop: '0.5rem' }}>
             {deliverable.kind === "link" && (
-              <input
-                type="url"
-                value={deliverable.value || ""}
-                onChange={(e) => handleDeliverableValueChange(index, e.target.value)}
-                placeholder="Enter URL..."
-                className="evidence-input"
-                style={{ width: '100%' }}
-              />
+              <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                <input
+                  type="url"
+                  value={deliverable.value || ""}
+                  onChange={(e) => handleDeliverableValueChange(index, e.target.value)}
+                  placeholder={linkPlaceholder}
+                  className="evidence-input"
+                  style={{ width: '100%' }}
+                  inputMode="url"
+                  spellCheck={false}
+                />
+                {canOpenUrl && (
+                  <a
+                    href={urlValue}
+                    target="_blank"
+                    rel="noreferrer"
+                    style={{
+                      padding: '0.45rem 0.6rem',
+                      border: '1px solid #ccc',
+                      borderRadius: '4px',
+                      backgroundColor: '#fff',
+                      color: '#111',
+                      textDecoration: 'none',
+                      fontSize: '0.85rem',
+                      whiteSpace: 'nowrap'
+                    }}
+                    title="Open link in new tab"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    Open ↗
+                  </a>
+                )}
+              </div>
             )}
             {deliverable.kind === "text" && (
               <textarea
@@ -2254,6 +2462,7 @@ function App() {
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null)
   const [selectedSprintId, setSelectedSprintId] = useState<string | null>(null)
   const [selectedResolutionId, setSelectedResolutionId] = useState<string | null>(null)
+  const [editProjectId, setEditProjectId] = useState<string | null>(null)
 
   // Helper to apply derived status to all phases in a workspace
   const applyDerivedStatuses = (ws: WorkspaceState): WorkspaceState => {
@@ -2529,6 +2738,30 @@ function App() {
     setScope('sprint')
   }
 
+  const handleUpdateProject = (
+    resolutionId: string,
+    updates: {
+      title: string
+      description?: string
+      category?: string
+      priority?: Priority
+      imageUrl?: string
+    }
+  ) => {
+    if (!workspace) return
+    const now = new Date().toISOString()
+    const updated: WorkspaceState = {
+      ...workspace,
+      resolutions: workspace.resolutions.map(r =>
+        r.id === resolutionId
+          ? { ...r, ...updates, updatedAt: now }
+          : r
+      ),
+      updatedAt: now
+    }
+    updateWorkspace(updated)
+  }
+
   const handleExport = () => {
     const json = exportWorkspaceState()
     const blob = new Blob([json], { type: 'application/json' })
@@ -2582,6 +2815,12 @@ function App() {
   const selectedPhase = activeProgram?.phases.find(p => p.id === selectedSprintId) || null
 
   const demoMode = isDemoMode()
+  const headerSubtitle =
+    scope === 'portfolio'
+      ? 'Project portfolio'
+      : scope === 'project'
+      ? (selectedProject?.title || 'Project')
+      : `${selectedPhase?.title || 'Sprint'} • ${selectedProject?.title || 'Project'}`
 
   return (
     <div className="app">
@@ -2614,8 +2853,8 @@ function App() {
         </div>
       )}
       <header className="app-header">
-        <h1 className="app-title">Week 01 Resolution Tracker</h1>
-        <p className="app-subtitle">Track your progress through resolutions, programs, and phases</p>
+        <h1 className="app-title">10 Week AI Resolution Project</h1>
+        <p className="app-subtitle">{headerSubtitle}</p>
         {!demoMode && (
           <div style={{ marginTop: '0.5rem' }}>
             <a 
@@ -2639,6 +2878,7 @@ function App() {
             onSelectProject={handleSelectProject}
             onSelectSprint={handleSelectSprint}
             onCreateProject={handleCreateResolution}
+            onEditProject={(id) => setEditProjectId(id)}
             onStatusChange={handleStatusChange}
             onExport={handleExport}
             onImport={handleImport}
@@ -2649,6 +2889,7 @@ function App() {
             resolution={selectedProject}
             onBack={() => setScope('portfolio')}
             onSelectSprint={(sprintId) => handleSelectSprint(selectedProject.id, sprintId)}
+            onEditProject={(id) => setEditProjectId(id)}
             onUpdateWorkspace={updateWorkspace}
           />
         )}
@@ -2662,6 +2903,13 @@ function App() {
           />
         )}
       </main>
+
+      <EditResolutionModal
+        isOpen={editProjectId !== null}
+        resolution={workspace.resolutions.find(r => r.id === editProjectId) || null}
+        onClose={() => setEditProjectId(null)}
+        onSave={handleUpdateProject}
+      />
     </div>
   )
 }

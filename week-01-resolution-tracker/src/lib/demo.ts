@@ -11,6 +11,11 @@ export function createDemoWorkspaceState(): WorkspaceState {
   const now = new Date().toISOString();
   const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
   const twoWeeksAgo = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString();
+  const origin =
+    typeof window !== "undefined"
+      ? window.location.origin
+      : "https://ai-resolution.benjaminconnelly.com";
+  const week01Url = `${origin}/week-01/`;
 
   // Create phases with realistic progress
   const phases: Phase[] = WEEK_DEFINITIONS.map((def, idx) => {
@@ -29,12 +34,12 @@ export function createDemoWorkspaceState(): WorkspaceState {
         if (dIdx === 0) {
           // PWA deliverable - completed with link
           deliverable.completed = true;
-          deliverable.value = "https://benjaminconnelly.com/10-week-ai-resolution/week-01";
+          deliverable.value = week01Url;
           deliverable.updatedAt = weekAgo;
         } else if (dIdx === 1) {
           // Deployment URL - completed
           deliverable.completed = true;
-          deliverable.value = "https://benjaminconnelly.com/10-week-ai-resolution/week-01";
+          deliverable.value = week01Url;
           deliverable.updatedAt = weekAgo;
         }
       }

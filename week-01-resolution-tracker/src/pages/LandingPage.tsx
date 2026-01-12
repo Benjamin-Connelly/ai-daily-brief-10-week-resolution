@@ -170,8 +170,8 @@ export default function LandingPage() {
                 height: 'auto',
                 display: 'block',
                 objectFit: 'contain',
-                imageRendering: '-webkit-optimize-contrast',
-                imageRendering: 'optimize-contrast'
+                // Slight contrast bump helps JPEG text remain readable on downscale
+                filter: 'contrast(1.05)'
               }}
             />
           </div>
