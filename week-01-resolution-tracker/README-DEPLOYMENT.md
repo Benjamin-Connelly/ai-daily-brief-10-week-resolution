@@ -17,10 +17,12 @@ This project is configured to deploy to `benjaminconnelly.com/10-week-ai-resolut
 2. Create a new project
 3. Connect to GitHub repository: `Benjamin-Connelly/ai-daily-brief-10-week-resolution`
 4. Configure build settings:
-   - **Framework preset**: Vite
+   - **Framework preset**: Vite (or None)
    - **Build command**: `cd week-01-resolution-tracker && npm install && npm run build`
    - **Build output directory**: `week-01-resolution-tracker/dist`
    - **Root directory**: `/` (monorepo root)
+   - **Deploy command**: `npx wrangler pages deploy week-01-resolution-tracker/dist --project-name=week-01-resolution-tracker`
+   - **Non-production branch deploy command**: `npx wrangler pages deploy week-01-resolution-tracker/dist --project-name=week-01-resolution-tracker`
 5. Add custom domain:
    - Domain: `benjaminconnelly.com`
    - Path prefix: `/10-week-ai-resolution/week-01`
