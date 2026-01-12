@@ -2302,47 +2302,103 @@ function App() {
   }
 
   useEffect(() => {
-    try {
-      const loaded = loadWorkspaceState()
-      if (!loaded || !loaded.resolutions || !Array.isArray(loaded.resolutions)) {
-        console.error('Failed to load workspace state, creating default')
-        const defaultState = createDefaultAIResolution()
-        setWorkspace(defaultState)
-        saveWorkspaceState(defaultState)
-        setScope('portfolio')
-        return
-      }
-      const withDerivedStatuses = applyDerivedStatuses(loaded)
-      setWorkspace(withDerivedStatuses)
-      // Save if statuses changed (but not in demo mode)
-      if (JSON.stringify(loaded) !== JSON.stringify(withDerivedStatuses)) {
-        saveWorkspaceState(withDerivedStatuses)
-      }
-      // Always start on portfolio scope (default home)
-      setScope('portfolio')
-      // Preserve IDs if available, but don't auto-navigate
-      if (loaded.activeResolutionId) {
-        setSelectedProjectId(loaded.activeResolutionId)
-        setSelectedResolutionId(loaded.activeResolutionId)
-      }
-    } catch (error) {
-      console.error('Error loading workspace state:', error)
-      // Fallback to default state on error
+    let mounted = true
+    
+    const loadState = async () => {
       try {
-        const defaultState = createDefaultAIResolution()
-        setWorkspace(defaultState)
-        saveWorkspaceState(defaultState)
-        setScope('portfolio')
-      } catch (fallbackError) {
-        console.error('Error creating default state:', fallbackError)
-        // Last resort: set empty state to prevent infinite loading
-        setWorkspace({
-          version: 3,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-          resolutions: [],
-        })
+        const loaded = loadWorkspaceState()
+        
+        // Validate loaded state
+        if (!loaded || typeof loaded !== 'object' || loaded.version !== 3) {
+          console.warn('Invalid workspace state loaded, creating default')
+          const defaultState = createDefaultAIResolution()
+          if (mounted) {
+            setWorkspace(defaultState)
+            saveWorkspaceState(defaultState)
+            setScope('portfolio')
+          }
+          return
+        }
+        
+        // Ensure resolutions array exists and is valid
+        if (!loaded.resolutions || !Array.isArray(loaded.resolutions)) {
+          console.warn('Invalid resolutions array, creating default')
+          const defaultState = createDefaultAIResolution()
+          if (mounted) {
+            setWorkspace(defaultState)
+            saveWorkspaceState(defaultState)
+            setScope('portfolio')
+          }
+          return
+        }
+        
+        // If resolutions is empty, create default
+        if (loaded.resolutions.length === 0) {
+          console.log('No resolutions found, creating default')
+          const defaultState = createDefaultAIResolution()
+          if (mounted) {
+            setWorkspace(defaultState)
+            saveWorkspaceState(defaultState)
+            setScope('portfolio')
+          }
+          return
+        }
+        
+        // Apply derived statuses
+        try {
+          const withDerivedStatuses = applyDerivedStatuses(loaded)
+          if (mounted) {
+            setWorkspace(withDerivedStatuses)
+            // Save if statuses changed (but not in demo mode)
+            if (JSON.stringify(loaded) !== JSON.stringify(withDerivedStatuses)) {
+              saveWorkspaceState(withDerivedStatuses)
+            }
+            // Always start on portfolio scope (default home)
+            setScope('portfolio')
+            // Preserve IDs if available, but don't auto-navigate
+            if (loaded.activeResolutionId) {
+              setSelectedProjectId(loaded.activeResolutionId)
+              setSelectedResolutionId(loaded.activeResolutionId)
+            }
+          }
+        } catch (deriveError) {
+          console.error('Error applying derived statuses:', deriveError)
+          // Use loaded state even if derivation fails
+          if (mounted) {
+            setWorkspace(loaded)
+            setScope('portfolio')
+          }
+        }
+      } catch (error) {
+        console.error('Error loading workspace state:', error)
+        // Fallback to default state on error
+        try {
+          const defaultState = createDefaultAIResolution()
+          if (mounted) {
+            setWorkspace(defaultState)
+            saveWorkspaceState(defaultState)
+            setScope('portfolio')
+          }
+        } catch (fallbackError) {
+          console.error('Error creating default state:', fallbackError)
+          // Last resort: set minimal valid state to prevent infinite loading
+          if (mounted) {
+            setWorkspace({
+              version: 3,
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString(),
+              resolutions: [],
+            })
+            setScope('portfolio')
+          }
+        }
       }
+    }
+    
+    loadState()
+    
+    return () => {
+      mounted = false
     }
   }, []) // Load once on mount, demo mode check happens inside loadWorkspaceState
 

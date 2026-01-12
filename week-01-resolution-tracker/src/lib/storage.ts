@@ -70,23 +70,51 @@ export function loadWorkspaceState(): WorkspaceState {
 }
 
 function createDefaultAIResolution(): WorkspaceState {
-  const now = new Date().toISOString();
-  const program = createAIDailyBrief10WeekProgram();
-  const resolution = createDefaultResolution(
-    "AI Daily Brief – 10 Week Sprint",
-    "10-week AI learning and shipping challenge",
-    undefined,
-    [program]
-  );
-  resolution.activeProgramId = program.id;
+  try {
+    const now = new Date().toISOString();
+    const program = createAIDailyBrief10WeekProgram();
+    const resolution = createDefaultResolution(
+      "AI Daily Brief – 10 Week Sprint",
+      "10-week AI learning and shipping challenge",
+      undefined,
+      undefined,
+      undefined,
+      [program]
+    );
+    resolution.activeProgramId = program.id;
 
-  return {
-    version: 3,
-    createdAt: now,
-    updatedAt: now,
-    resolutions: [resolution],
-    activeResolutionId: resolution.id,
-  };
+    const state: WorkspaceState = {
+      version: 3,
+      createdAt: now,
+      updatedAt: now,
+      resolutions: [resolution],
+      activeResolutionId: resolution.id,
+    };
+    
+    // Validate the state before returning
+    if (!state.resolutions || !Array.isArray(state.resolutions) || state.resolutions.length === 0) {
+      console.error('Created invalid default state, retrying...');
+      // Fallback to minimal valid state
+      return {
+        version: 3,
+        createdAt: now,
+        updatedAt: now,
+        resolutions: [],
+      };
+    }
+    
+    return state;
+  } catch (error) {
+    console.error('Error creating default AI resolution:', error);
+    // Last resort: return minimal valid state
+    const now = new Date().toISOString();
+    return {
+      version: 3,
+      createdAt: now,
+      updatedAt: now,
+      resolutions: [],
+    };
+  }
 }
 
 export function saveWorkspaceState(state: WorkspaceState) {
