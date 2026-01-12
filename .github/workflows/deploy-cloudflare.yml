@@ -28,9 +28,7 @@ jobs:
       - name: Build
         working-directory: week-01-resolution-tracker
         run: npm run build
-
-      - name: Copy functions to dist
-        run: cp -r functions week-01-resolution-tracker/dist/
+        # Note: Build script automatically copies functions/ and assets/ to dist/
 
       - name: Deploy to Cloudflare Pages
         uses: cloudflare/pages-action@v1
