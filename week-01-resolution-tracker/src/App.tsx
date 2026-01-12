@@ -612,7 +612,7 @@ function HomeView({
         {/* Header */}
         <div className="kanban-header">
           <div className="kanban-header-left">
-            <h1 className="kanban-title">Resolution Tracker</h1>
+            <h1 className="kanban-title">Week 01 Resolution Tracker</h1>
             <p className="kanban-subtitle">2026 Goals</p>
           </div>
           <button onClick={() => setShowCreateModal(true)} className="btn-new-resolution">
@@ -2614,7 +2614,7 @@ function App() {
         </div>
       )}
       <header className="app-header">
-        <h1 className="app-title">Resolution Tracker</h1>
+        <h1 className="app-title">Week 01 Resolution Tracker</h1>
         <p className="app-subtitle">Track your progress through resolutions, programs, and phases</p>
         {!demoMode && (
           <div style={{ marginTop: '0.5rem' }}>

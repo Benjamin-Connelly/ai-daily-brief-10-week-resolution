@@ -70,7 +70,7 @@ export default function LandingPage() {
                 }
               }}
             >
-              WEEK {week.toString().padStart(2, '0')}
+              WEEK {week.toString().padStart(2, '0')} {week === 1 ? 'Resolution Tracker' : 'Coming Soon'}
               {week === currentWeek && (
                 <span style={{
                   marginLeft: '1rem',
@@ -129,7 +129,7 @@ export default function LandingPage() {
             lineHeight: '1.1',
             textShadow: '4px 4px 0px rgba(255,0,0,0.3)'
           }}>
-            AI RESOLUTION<br />PROJECT
+            10 WEEK AI<br />RESOLUTION PROJECT
           </h1>
 
           {/* Author */}
