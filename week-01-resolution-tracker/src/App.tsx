@@ -1541,7 +1541,7 @@ function PortfolioView({
               }}
               aria-expanded={sprintsExpanded}
             >
-              {sprintsExpanded ? 'Hide Sprints' : 'View Sprints'}
+              {sprintsExpanded ? 'Collapse Sprints' : 'Expand Sprints'}
             </button>
           )}
         </div>
@@ -2897,11 +2897,15 @@ function App() {
             Home
           </a>
           <span className="sep">›</span>
+          <a href="/weekly-projects" className="crumb">
+            Weekly Projects
+          </a>
+          <span className="sep">›</span>
           {scope === "portfolio" ? (
-            <span className="crumb crumb-current">Projects</span>
+            <span className="crumb crumb-current">Week 01 Tracker</span>
           ) : (
             <button type="button" className="crumb crumb-button" onClick={navigateToPortfolio}>
-              Projects
+              Week 01 Tracker
             </button>
           )}
           {selectedProject && scope !== "portfolio" && (
