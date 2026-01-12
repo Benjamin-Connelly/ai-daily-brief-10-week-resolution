@@ -29,3 +29,18 @@ This repository tracks my 10-week challenge to get current on modern AI, LLMs, a
 - Ship early
 - Public URLs where possible
 - Optimize for learning velocity
+
+## Deployment URLs
+
+### Week 1: Resolution Tracker (PWA)
+- **Production**: [benjaminconnelly.com/10-week-ai-resolution/week-01](https://benjaminconnelly.com/10-week-ai-resolution/week-01)
+- **Demo Mode**: [benjaminconnelly.com/10-week-ai-resolution/week-01?demo=true](https://benjaminconnelly.com/10-week-ai-resolution/week-01?demo=true)
+
+*More weeks will be added as they're deployed*
+
+## Hosting Strategy
+
+- **Static weeks** (1-3, 5, 9): Cloudflare Pages
+- **Dynamic weeks** (4, 6-8, 10): Proxmox + Cloudflare Tunnels
+
+See [week-01-resolution-tracker/README-DEPLOYMENT.md](week-01-resolution-tracker/README-DEPLOYMENT.md) for deployment details.

@@ -1,0 +1,4 @@
+# Cloudflare Pages redirects for SPA routing
+# All routes should fallback to index.html for React Router
+
+/10-week-ai-resolution/week-01/*  /10-week-ai-resolution/week-01/index.html  200
