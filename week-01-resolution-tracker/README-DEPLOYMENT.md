@@ -2,7 +2,7 @@
 
 ## Cloudflare Pages Setup
 
-This project is configured to deploy to `benjaminconnelly.com/10-week-ai-resolution/week-01/`
+This project is deployed to `ai-resolution.benjaminconnelly.com`
 
 ### Prerequisites
 
@@ -24,8 +24,7 @@ This project is configured to deploy to `benjaminconnelly.com/10-week-ai-resolut
    - **Deploy command**: `npx wrangler pages deploy week-01-resolution-tracker/dist --project-name=week-01-resolution-tracker`
    - **Non-production branch deploy command**: `npx wrangler pages deploy week-01-resolution-tracker/dist --project-name=week-01-resolution-tracker`
 5. Add custom domain:
-   - Domain: `benjaminconnelly.com`
-   - Path prefix: `/10-week-ai-resolution/week-01`
+   - Domain: `ai-resolution.benjaminconnelly.com`
 6. Deploy!
 
 #### Option 2: Wrangler CLI
@@ -49,14 +48,14 @@ wrangler pages deploy dist --project-name=week-01-resolution-tracker
 
 ### Build Configuration
 
-- **Base path**: `/10-week-ai-resolution/week-01/` (configured in `vite.config.ts`)
+- **Base path**: `/` (configured in `vite.config.ts`)
 - **Output**: `dist/` directory
 - **SPA routing**: Handled by `_redirects` file
 
 ### URL Structure
 
-- **Production**: `https://benjaminconnelly.com/10-week-ai-resolution/week-01/`
-- **Demo mode**: `https://benjaminconnelly.com/10-week-ai-resolution/week-01/?demo=true`
+- **Production**: `https://ai-resolution.benjaminconnelly.com`
+- **Demo mode**: `https://ai-resolution.benjaminconnelly.com?demo=true`
 
 ### Testing Locally
 
@@ -66,13 +65,13 @@ npm run build
 npm run preview
 ```
 
-Visit: `http://localhost:4173/10-week-ai-resolution/week-01/`
+Visit: `http://localhost:4173/`
 
 ### Demo Mode
 
 Share the demo URL with peers:
 ```
-https://benjaminconnelly.com/10-week-ai-resolution/week-01/?demo=true
+https://ai-resolution.benjaminconnelly.com?demo=true
 ```
 
 This shows realistic sample data without affecting localStorage.

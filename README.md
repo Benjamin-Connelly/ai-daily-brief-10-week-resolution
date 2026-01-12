@@ -33,8 +33,8 @@ This repository tracks my 10-week challenge to get current on modern AI, LLMs, a
 ## Deployment URLs
 
 ### Week 1: Resolution Tracker (PWA)
-- **Production**: [benjaminconnelly.com/10-week-ai-resolution/week-01](https://benjaminconnelly.com/10-week-ai-resolution/week-01)
-- **Demo Mode**: [benjaminconnelly.com/10-week-ai-resolution/week-01?demo=true](https://benjaminconnelly.com/10-week-ai-resolution/week-01?demo=true)
+- **Production**: [ai-resolution.benjaminconnelly.com](https://ai-resolution.benjaminconnelly.com)
+- **Demo Mode**: [ai-resolution.benjaminconnelly.com?demo=true](https://ai-resolution.benjaminconnelly.com?demo=true)
 
 *More weeks will be added as they're deployed*
 
