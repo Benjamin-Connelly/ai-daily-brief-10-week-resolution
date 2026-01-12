@@ -2814,12 +2814,14 @@ function App() {
   const selectedPhase = activeProgram?.phases.find(p => p.id === selectedSprintId) || null
 
   const demoMode = isDemoMode()
+  const headerTitle =
+    scope === "portfolio"
+      ? "Projects"
+      : scope === "project"
+      ? (selectedProject?.title || "Project")
+      : (selectedPhase?.title || "Sprint")
   const headerSubtitle =
-    scope === 'portfolio'
-      ? 'Project portfolio'
-      : scope === 'project'
-      ? (selectedProject?.title || 'Project')
-      : `${selectedPhase?.title || 'Sprint'} • ${selectedProject?.title || 'Project'}`
+    scope === "sprint" ? (selectedProject?.title || "Project") : undefined
 
   const navigateToPortfolio = () => {
     setScope('portfolio')
@@ -2877,8 +2879,8 @@ function App() {
           </a>
 
           <div className="app-header-titles">
-            <h1 className="app-title">10 Week AI Resolution Project</h1>
-            <p className="app-subtitle">{headerSubtitle}</p>
+            <h1 className="app-title">{headerTitle}</h1>
+            {headerSubtitle && <p className="app-subtitle">{headerSubtitle}</p>}
           </div>
 
           <div className="app-header-actions">
@@ -2894,21 +2896,29 @@ function App() {
           <a href="/" className="crumb">
             Home
           </a>
-          <span className="sep">/</span>
-          <button type="button" className="crumb crumb-button" onClick={navigateToPortfolio}>
-            Projects
-          </button>
-          {selectedProject && (
+          <span className="sep">›</span>
+          {scope === "portfolio" ? (
+            <span className="crumb crumb-current">Projects</span>
+          ) : (
+            <button type="button" className="crumb crumb-button" onClick={navigateToPortfolio}>
+              Projects
+            </button>
+          )}
+          {selectedProject && scope !== "portfolio" && (
             <>
-              <span className="sep">/</span>
-              <button type="button" className="crumb crumb-button" onClick={navigateToProject}>
-                {selectedProject.title}
-              </button>
+              <span className="sep">›</span>
+              {scope === "project" ? (
+                <span className="crumb crumb-current">{selectedProject.title}</span>
+              ) : (
+                <button type="button" className="crumb crumb-button" onClick={navigateToProject}>
+                  {selectedProject.title}
+                </button>
+              )}
             </>
           )}
           {scope === "sprint" && selectedPhase && (
             <>
-              <span className="sep">/</span>
+              <span className="sep">›</span>
               <span className="crumb crumb-current">{selectedPhase.title}</span>
             </>
           )}
