@@ -151,40 +151,30 @@ export default function LandingPage() {
           {/* Shrike Illustration - The Shrike's Larder */}
           <div style={{
             width: '100%',
-            minHeight: '500px',
             border: '4px solid #000',
             backgroundColor: '#f5f5f5',
             position: 'relative',
             marginBottom: '2rem',
             boxShadow: '8px 8px 0px 0px rgba(0,0,0,0.2)',
-            backgroundImage: 'repeating-linear-gradient(45deg, transparent, transparent 10px, rgba(0,0,0,0.02) 10px, rgba(0,0,0,0.02) 20px)',
-            overflow: 'hidden'
+            overflow: 'hidden',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center'
           }}>
             <img 
               src="/assets/images/ai-resolution-main.jpeg" 
               alt="The Shrike's Larder - AI Resolution Project"
               style={{ 
                 width: '100%',
+                maxWidth: '100%',
                 height: 'auto',
                 display: 'block',
-                objectFit: 'contain'
+                objectFit: 'contain',
+                imageRendering: 'crisp-edges',
+                WebkitImageRendering: 'crisp-edges',
+                msInterpolationMode: 'nearest-neighbor'
               }}
             />
-            
-            {/* Title overlay - "THE SHRIKE'S LARDER" */}
-            <div style={{
-              position: 'absolute',
-              bottom: '2rem',
-              right: '2rem',
-              fontSize: '1.5rem',
-              fontWeight: '900',
-              textTransform: 'uppercase',
-              letterSpacing: '4px',
-              color: '#000',
-              textShadow: '2px 2px 0px rgba(255,0,0,0.3)'
-            }}>
-              THE SHRIKE'S LARDER
-            </div>
           </div>
 
           {/* Footer Text */}
